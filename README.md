@@ -53,6 +53,33 @@ CerviRisk is designed to demonstrate practical clinical ML engineering:
 - Clustering adds unsupervised cohort discovery for clinical risk pattern exploration.
 - FastAPI and drift monitoring connect the model to deployment and post-deployment reliability.
 
+## Scalability by Design
+
+CerviRisk is structured so the same pipeline can scale from a local demo to registry-scale workloads:
+
+- The simulator can be run with `--n-women 500000` and `--chunk-size` to generate 500,000 women and multi-million-row longitudinal screening data without holding the full dataset in memory.
+- Raw records can be written as year-partitioned Parquet with `--partition-by-year`, enabling efficient yearly reads for incremental preprocessing and monitoring.
+- Feature engineering has both the default Pandas path (`src/preprocess.py`) and a Polars path (`src/preprocess_polars.py`) for faster lazy scans over larger Parquet datasets.
+- XGBoost training includes a Dask-XGBoost switch via `CERVIRISK_USE_DASK_XGB=1`, giving the training code a migration path from local execution to a distributed cluster.
+- Pipeline schemas mirror NKCx-style cervical screening registry concepts: person identifier, screening date, HPV genotype, cytology, histology, treatment, and longitudinal follow-up outcomes. Connecting real registry data should therefore require replacing the data-reading adapter rather than rewriting the full pipeline.
+
+Large synthetic registry example:
+
+```bash
+python src/data_simulator.py \
+  --n-women 500000 \
+  --chunk-size 25000 \
+  --output data/raw/screening_records_partitioned \
+  --partition-by-year
+
+python src/preprocess_polars.py \
+  --input data/raw/screening_records_partitioned \
+  --output data/processed/features_polars_partitioned \
+  --partition-by-year
+
+CERVIRISK_USE_DASK_XGB=1 python src/train.py
+```
+
 ## Repository Layout
 
 ```text

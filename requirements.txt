@@ -11,3 +11,6 @@ matplotlib
 joblib
 requests
 scipy
+polars
+dask[dataframe]
+distributed

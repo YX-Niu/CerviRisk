@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 import numpy as np
 import pandas as pd
@@ -192,17 +194,92 @@ def generate_screening_data(cfg: SimulatorConfig = SimulatorConfig()) -> pd.Data
     return df
 
 
-def main() -> None:
-    cfg = SimulatorConfig()
-    RAW_PATH.parent.mkdir(parents=True, exist_ok=True)
-    df = generate_screening_data(cfg)
-    df.to_parquet(RAW_PATH, index=False)
+def generate_screening_chunks(cfg: SimulatorConfig, chunk_size: int) -> Iterator[pd.DataFrame]:
+    rng = np.random.default_rng(cfg.seed)
+    rows = []
+    for person_number in range(1, cfg.n_women + 1):
+        rows.extend(generate_person_records(person_number, rng, cfg))
+        if person_number % chunk_size == 0:
+            yield pd.DataFrame(rows).sort_values(["screening_date", "person_id"]).reset_index(drop=True)
+            rows = []
+    if rows:
+        yield pd.DataFrame(rows).sort_values(["screening_date", "person_id"]).reset_index(drop=True)
 
-    print(f"Saved {RAW_PATH}")
-    print("shape:", df.shape)
-    print(df.describe(include="all").transpose().head(30))
-    print("missing values:")
-    print(df.isna().sum().loc[lambda s: s > 0])
+
+def write_screening_data(
+    cfg: SimulatorConfig,
+    output: Path,
+    chunk_size: int | None = None,
+    partition_by_year: bool = False,
+) -> pd.DataFrame | None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if chunk_size is None or chunk_size >= cfg.n_women:
+        df = generate_screening_data(cfg)
+        if partition_by_year:
+            _write_year_partitioned(df, output, chunk_id=1)
+        else:
+            df.to_parquet(output, index=False)
+        return df
+
+    row_count = 0
+    for i, chunk in enumerate(generate_screening_chunks(cfg, chunk_size), start=1):
+        if partition_by_year:
+            _write_year_partitioned(chunk, output, chunk_id=i)
+        else:
+            chunk_path = output.with_name(f"{output.stem}_part_{i:04d}{output.suffix}")
+            chunk.to_parquet(chunk_path, index=False)
+        row_count += len(chunk)
+        print(f"wrote chunk {i}: rows={len(chunk):,}, cumulative_rows={row_count:,}")
+    return None
+
+
+def _write_year_partitioned(df: pd.DataFrame, output: Path, chunk_id: int) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    by_year = df.assign(screening_year=df["screening_date"].dt.year)
+    for year, year_df in by_year.groupby("screening_year", sort=True):
+        year_dir = output / f"screening_year={int(year)}"
+        year_dir.mkdir(parents=True, exist_ok=True)
+        year_df.drop(columns=["screening_year"]).to_parquet(
+            year_dir / f"part-{chunk_id:05d}.parquet",
+            index=False,
+        )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate synthetic longitudinal CerviRisk screening records.")
+    parser.add_argument("--n-women", type=int, default=6000)
+    parser.add_argument("--start-year", type=int, default=2010)
+    parser.add_argument("--end-year", type=int, default=2024)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output", type=Path, default=RAW_PATH)
+    parser.add_argument("--chunk-size", type=int, default=None)
+    parser.add_argument("--partition-by-year", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    cfg = SimulatorConfig(
+        n_women=args.n_women,
+        start_year=args.start_year,
+        end_year=args.end_year,
+        seed=args.seed,
+    )
+    df = write_screening_data(
+        cfg=cfg,
+        output=args.output,
+        chunk_size=args.chunk_size,
+        partition_by_year=args.partition_by_year,
+    )
+
+    print(f"Saved {args.output}")
+    if df is not None:
+        print("shape:", df.shape)
+        print(df.describe(include="all").transpose().head(30))
+        print("missing values:")
+        print(df.isna().sum().loc[lambda s: s > 0])
+    else:
+        print("chunked write complete")
 
 
 if __name__ == "__main__":

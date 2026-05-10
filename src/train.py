@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import joblib
@@ -115,6 +117,62 @@ def save_xgb_target_model(target: str, feature_columns: list[str]) -> XGBClassif
     return model
 
 
+def save_dask_xgb_target_model(target: str, feature_columns: list[str]) -> XGBClassifier:
+    try:
+        import dask.dataframe as dd
+        from dask.distributed import Client, LocalCluster
+        from xgboost.dask import DaskXGBClassifier
+    except ImportError as exc:
+        raise RuntimeError(
+            "Dask-XGBoost mode requires dask[dataframe], distributed, and xgboost with dask support."
+        ) from exc
+
+    train = pd.concat([load_split("train"), load_split("validation")], ignore_index=True)
+    y = train[target]
+    scale_pos_weight = max(float((y == 0).sum() / max((y == 1).sum(), 1)), 1.0)
+
+    scheduler_address = os.getenv("DASK_SCHEDULER_ADDRESS")
+    if scheduler_address:
+        cluster = None
+        client = Client(scheduler_address)
+    else:
+        cluster = LocalCluster(
+            n_workers=2,
+            threads_per_worker=2,
+            processes=False,
+            dashboard_address=None,
+            worker_dashboard_address=None,
+        )
+        client = Client(cluster)
+    try:
+        x_dd = dd.from_pandas(train[feature_columns], npartitions=4)
+        y_dd = dd.from_pandas(y, npartitions=4)
+        dask_model = DaskXGBClassifier(
+            n_estimators=260,
+            max_depth=3,
+            learning_rate=0.045,
+            subsample=0.86,
+            colsample_bytree=0.86,
+            eval_metric="logloss",
+            random_state=42,
+            scale_pos_weight=scale_pos_weight,
+        )
+        dask_model.client = client
+        dask_model.fit(x_dd, y_dd)
+
+        local_model = _xgb_model(scale_pos_weight)
+        bootstrap_x = train[feature_columns].head(2)
+        local_model.fit(bootstrap_x, np.array([0, 1]))
+        with tempfile.NamedTemporaryFile(suffix=".json") as model_file:
+            dask_model.get_booster().save_model(model_file.name)
+            local_model.load_model(model_file.name)
+        return local_model
+    finally:
+        client.close()
+        if cluster is not None:
+            cluster.close()
+
+
 def main() -> None:
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -126,8 +184,12 @@ def main() -> None:
     all_results.append(primary_results)
     joblib.dump(best_model, MODEL_DIR / "best_cin2_3yr.pkl")
 
+    use_dask_xgb = os.getenv("CERVIRISK_USE_DASK_XGB", "0") == "1"
+    if use_dask_xgb:
+        print("Dask-XGBoost mode enabled via CERVIRISK_USE_DASK_XGB=1")
+
     for target in metadata["target_columns"]:
-        xgb = save_xgb_target_model(target, feature_columns)
+        xgb = save_dask_xgb_target_model(target, feature_columns) if use_dask_xgb else save_xgb_target_model(target, feature_columns)
         suffix = target.replace("outcome_", "")
         joblib.dump(xgb, MODEL_DIR / f"xgb_{suffix}.pkl")
         if target == PRIMARY_TARGET:

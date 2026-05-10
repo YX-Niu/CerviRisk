@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Generated outputs are reproducible from the scripts.
+data/raw/*.parquet
+data/processed/*.parquet
+data/processed/*.json
+models/*.pkl
+reports/*.csv
+reports/*.json
+reports/*.png
+reports/*.html

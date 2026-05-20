@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Generate demo raw data before preprocessing. Keep this off when raw data comes from a database/export.",
     )
+    parser.add_argument("--bootstrap-n-women", type=int, default=22000, help="Number of synthetic women for demo bootstrap.")
     parser.add_argument("--skip-ingestion", action="store_true", help="Skip the simulated monthly incoming batch step.")
     parser.add_argument("--batch-date", default="2024-01-01", help="Batch date for simulated monthly ingestion.")
     parser.add_argument("--current-batch", type=Path, default=DEFAULT_BATCH_PATH, help="Batch used by drift monitoring.")
@@ -46,7 +47,19 @@ def main() -> None:
         steps.append(("monthly ingestion batch", [python, "src/ingest.py", "--batch-date", args.batch_date]))
 
     if args.bootstrap_synthetic:
-        steps.append(("demo raw data bootstrap", [python, "src/data_simulator.py", "--output", str(raw_input)]))
+        steps.append(
+            (
+                "demo raw data bootstrap",
+                [
+                    python,
+                    "src/data_simulator.py",
+                    "--n-women",
+                    str(args.bootstrap_n_women),
+                    "--output",
+                    str(raw_input),
+                ],
+            )
+        )
     elif not (ROOT / raw_input).exists():
         raise FileNotFoundError(
             f"{raw_input} does not exist. Provide --raw-input from your ingestion layer, "

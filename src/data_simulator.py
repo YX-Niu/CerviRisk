@@ -14,7 +14,7 @@ RAW_PATH = Path("data/raw/screening_records.parquet")
 
 @dataclass(frozen=True)
 class SimulatorConfig:
-    n_women: int = 6000
+    n_women: int = 22000
     start_year: int = 2010
     end_year: int = 2024
     seed: int = 42
@@ -247,7 +247,7 @@ def _write_year_partitioned(df: pd.DataFrame, output: Path, chunk_id: int) -> No
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate synthetic longitudinal CerviRisk screening records.")
-    parser.add_argument("--n-women", type=int, default=6000)
+    parser.add_argument("--n-women", type=int, default=22000)
     parser.add_argument("--start-year", type=int, default=2010)
     parser.add_argument("--end-year", type=int, default=2024)
     parser.add_argument("--seed", type=int, default=42)

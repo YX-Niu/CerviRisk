@@ -14,7 +14,7 @@ pip install -r requirements.txt
 python src/run_pipeline.py --bootstrap-synthetic
 ```
 
-The command above runs the self-contained demo from simulated ingestion through drift monitoring. In production-style use, `run_pipeline.py` expects raw longitudinal records to already exist from an ingestion layer, database export, or registry file:
+The command above runs the self-contained demo from simulated ingestion through drift monitoring. The default synthetic bootstrap generates about 22,000 women and roughly 100,000 longitudinal screening records. In production-style use, `run_pipeline.py` expects raw longitudinal records to already exist from an ingestion layer, database export, or registry file:
 
 ```bash
 python src/run_pipeline.py --raw-input data/raw/screening_records.parquet

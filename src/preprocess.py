@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -116,15 +117,23 @@ def split_by_time(features: pd.DataFrame) -> dict[str, pd.DataFrame]:
     }
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build leakage-aware CerviRisk features from raw screening records.")
+    parser.add_argument("--raw-input", type=Path, default=RAW_PATH)
+    parser.add_argument("--processed-dir", type=Path, default=PROCESSED_DIR)
+    return parser.parse_args()
+
+
 def main() -> None:
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    raw = pd.read_parquet(RAW_PATH)
+    args = parse_args()
+    args.processed_dir.mkdir(parents=True, exist_ok=True)
+    raw = pd.read_parquet(args.raw_input)
     features, category_levels = build_dataset(raw)
     feature_columns = [c for c in features.columns if c not in ID_COLUMNS + TARGETS]
 
-    features.to_parquet(PROCESSED_DIR / "features_all.parquet", index=False)
+    features.to_parquet(args.processed_dir / "features_all.parquet", index=False)
     for name, split in split_by_time(features).items():
-        split.to_parquet(PROCESSED_DIR / f"{name}.parquet", index=False)
+        split.to_parquet(args.processed_dir / f"{name}.parquet", index=False)
 
     metadata = {
         "feature_columns": feature_columns,
@@ -139,8 +148,9 @@ def main() -> None:
             "future_holdout": "2023+",
         },
     }
-    (PROCESSED_DIR / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    (args.processed_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
+    print("Raw input:", args.raw_input)
     print("Processed rows:", features.shape)
     for target in TARGETS:
         print(target, "rate:", float(np.round(features[target].mean(), 4)))

@@ -11,15 +11,21 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python src/run_pipeline.py
+python src/run_pipeline.py --bootstrap-synthetic
 ```
 
-The command above runs the self-contained system from simulated ingestion through drift monitoring. To run the stages manually:
+The command above runs the self-contained demo from simulated ingestion through drift monitoring. In production-style use, `run_pipeline.py` expects raw longitudinal records to already exist from an ingestion layer, database export, or registry file:
+
+```bash
+python src/run_pipeline.py --raw-input data/raw/screening_records.parquet
+```
+
+To run the stages manually:
 
 ```bash
 python src/ingest.py --batch-date 2024-01-01
 python src/data_simulator.py
-python src/preprocess.py
+python src/preprocess.py --raw-input data/raw/screening_records.parquet
 python src/train.py
 python src/clustering.py
 python src/explain.py
@@ -53,7 +59,7 @@ flowchart LR
 
 CerviRisk uses simulated monthly batch ingestion. Cervical screening events are generated as registry-style batches under `data/incoming/batch_date=YYYY-MM-DD/`, with a manifest at `data/incoming/manifest.jsonl`.
 
-Monthly cadence is a deliberate design choice: cervical screening programs usually accumulate laboratory, cytology, histology, and registry updates in scheduled batches rather than second-level streams. The same ingestion boundary can be replaced by a real registry export, API pull, or database query without changing the downstream training and serving code.
+Monthly cadence is a deliberate design choice: cervical screening programs usually accumulate laboratory, cytology, histology, and registry updates in scheduled batches rather than second-level streams. The same ingestion boundary can be replaced by a real registry export, API pull, or database query. `run_pipeline.py` does not hard-code the data generator; it accepts `--raw-input`, while `--bootstrap-synthetic` is only a local demo convenience.
 
 ## Design Rationale
 

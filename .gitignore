@@ -9,6 +9,7 @@ __pycache__/
 
 # Generated outputs are reproducible from the scripts.
 data/raw/*.parquet
+data/incoming/
 data/processed/*.parquet
 data/processed/*.json
 models/*.pkl

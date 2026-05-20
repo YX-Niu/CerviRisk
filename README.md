@@ -11,6 +11,13 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+python src/run_pipeline.py
+```
+
+The command above runs the self-contained system from simulated ingestion through drift monitoring. To run the stages manually:
+
+```bash
+python src/ingest.py --batch-date 2024-01-01
 python src/data_simulator.py
 python src/preprocess.py
 python src/train.py
@@ -30,16 +37,23 @@ python api/test_request.py
 
 ```mermaid
 flowchart LR
-    A[Simulate longitudinal screening data] --> B[Leakage-aware preprocessing]
-    B --> C[Time split train/validation/test]
-    C --> D[Logistic Regression]
-    C --> E[Random Forest]
-    C --> F[XGBoost CIN2+ models]
-    F --> G[SHAP explanations]
-    B --> H[K-Means risk clusters]
-    F --> I[FastAPI /predict]
-    C --> J[Drift monitoring]
+    A[Monthly incoming screening batch] --> B[Raw registry-style Parquet]
+    B --> C[Leakage-aware preprocessing]
+    C --> D[Time split train/validation/test]
+    D --> E[Logistic Regression]
+    D --> F[Random Forest]
+    D --> G[XGBoost CIN2+ models]
+    G --> H[SHAP explanations]
+    C --> I[K-Means risk clusters]
+    G --> J[FastAPI /predict]
+    A --> K[Drift monitoring]
 ```
+
+## Data Ingestion Cadence
+
+CerviRisk uses simulated monthly batch ingestion. Cervical screening events are generated as registry-style batches under `data/incoming/batch_date=YYYY-MM-DD/`, with a manifest at `data/incoming/manifest.jsonl`.
+
+Monthly cadence is a deliberate design choice: cervical screening programs usually accumulate laboratory, cytology, histology, and registry updates in scheduled batches rather than second-level streams. The same ingestion boundary can be replaced by a real registry export, API pull, or database query without changing the downstream training and serving code.
 
 ## Design Rationale
 
@@ -52,6 +66,31 @@ CerviRisk is designed to demonstrate practical clinical ML engineering:
 - SHAP and feature importance provide interpretable drivers such as HPV genotype, cytology, and screening history.
 - Clustering adds unsupervised cohort discovery for clinical risk pattern exploration.
 - FastAPI and drift monitoring connect the model to deployment and post-deployment reliability.
+
+## Storage Decisions
+
+CerviRisk keeps the demo self-contained, so it uses local files instead of requiring an external database:
+
+- Incoming data: monthly Parquet batches plus a JSONL manifest. This makes ingestion auditable and easy to replay.
+- Raw historical data: Parquet, because the data is tabular, typed, columnar, and efficient for batch ML reads.
+- Processed features: Parquet split files for train, validation, test, and holdout sets. This avoids recomputing features during repeated model experiments.
+- Model artifacts: `joblib` pickle files under `models/`, which is sufficient for a local reproducible repository.
+- Reports and monitoring outputs: CSV, JSON, PNG, and HTML under `reports/`, because these are easy for a reviewer to inspect.
+
+A production deployment would likely add PostgreSQL or another operational database for incoming screening events, prediction logs, and audit trails. The project intentionally avoids that dependency so a reviewer can clone and run the complete system locally.
+
+## Serving And Monitoring
+
+Predictions are served by FastAPI:
+
+```bash
+uvicorn api.app:app --reload
+python api/test_request.py
+```
+
+The `/predict` endpoint accepts one screening record with current findings and historical features. It loads the trained XGBoost artifacts and returns 1-year, 3-year, and 5-year CIN2+ risk probabilities.
+
+Data shift is checked after new batches arrive. `src/monitor.py` reads the latest monthly batch from `data/incoming/` unless a specific batch is provided with `--current-batch`. Numeric variables use a KS test, categorical variables use a chi-square test, and `reports/drift_report.json` records which monitored features exceed the drift threshold. In production, repeated drift warnings would trigger data-quality review, subgroup performance checks, and model retraining.
 
 ## Scalability by Design
 
@@ -84,6 +123,7 @@ CERVIRISK_USE_DASK_XGB=1 python src/train.py
 
 ```text
 api/                 FastAPI inference app and sample request
+data/incoming/       Simulated monthly ingestion batches
 data/raw/            Simulated raw screening records
 data/processed/      Feature matrices, labels, split files, metadata
 models/              Trained model artifacts

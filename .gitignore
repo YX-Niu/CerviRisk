@@ -6,6 +6,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .ipynb_checkpoints/
+Cervical Cancer Screening.emmx
+Gemini_Generated_Image_fzqw06fzqw06fzqw.png
 
 # Generated outputs are reproducible from the scripts.
 data/raw/*.parquet

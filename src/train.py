@@ -18,11 +18,12 @@ from sklearn.preprocessing import StandardScaler
 
 from xgboost import XGBClassifier
 
+try:
+    from src.config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
+except ModuleNotFoundError:
+    from config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
 
-PROCESSED_DIR = Path("data/processed")
-MODEL_DIR = Path("models")
-REPORT_DIR = Path("reports")
-PRIMARY_TARGET = "outcome_cin2_3yr"
+PRIMARY_TARGET = MODELING.primary_target
 
 
 def _metrics(y_true: pd.Series, prob: np.ndarray, threshold: float = 0.5) -> dict[str, float]:
@@ -36,14 +37,14 @@ def _metrics(y_true: pd.Series, prob: np.ndarray, threshold: float = 0.5) -> dic
 
 def _xgb_model(scale_pos_weight: float = 1.0) -> XGBClassifier:
     return XGBClassifier(
-        n_estimators=260,
-        max_depth=3,
-        learning_rate=0.045,
-        subsample=0.86,
-        colsample_bytree=0.86,
+        n_estimators=MODELING.xgb_n_estimators,
+        max_depth=MODELING.xgb_max_depth,
+        learning_rate=MODELING.xgb_learning_rate,
+        subsample=MODELING.xgb_subsample,
+        colsample_bytree=MODELING.xgb_colsample_bytree,
         eval_metric="logloss",
-        random_state=42,
-        n_jobs=4,
+        random_state=MODELING.random_seed,
+        n_jobs=MODELING.xgb_n_jobs,
         scale_pos_weight=scale_pos_weight,
     )
 
@@ -148,13 +149,13 @@ def save_dask_xgb_target_model(target: str, feature_columns: list[str]) -> XGBCl
         x_dd = dd.from_pandas(train[feature_columns], npartitions=4)
         y_dd = dd.from_pandas(y, npartitions=4)
         dask_model = DaskXGBClassifier(
-            n_estimators=260,
-            max_depth=3,
-            learning_rate=0.045,
-            subsample=0.86,
-            colsample_bytree=0.86,
+            n_estimators=MODELING.xgb_n_estimators,
+            max_depth=MODELING.xgb_max_depth,
+            learning_rate=MODELING.xgb_learning_rate,
+            subsample=MODELING.xgb_subsample,
+            colsample_bytree=MODELING.xgb_colsample_bytree,
             eval_metric="logloss",
-            random_state=42,
+            random_state=MODELING.random_seed,
             scale_pos_weight=scale_pos_weight,
         )
         dask_model.client = client

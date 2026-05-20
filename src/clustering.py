@@ -10,16 +10,17 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
-
-PROCESSED_DIR = Path("data/processed")
-REPORT_DIR = Path("reports")
+try:
+    from src.config import CLUSTERING, MODELING, PROCESSED_DIR, REPORT_DIR
+except ModuleNotFoundError:
+    from config import CLUSTERING, MODELING, PROCESSED_DIR, REPORT_DIR
 
 
 def main() -> None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     features = pd.read_parquet(PROCESSED_DIR / "features_all.parquet")
     features["screening_date"] = pd.to_datetime(features["screening_date"])
-    eligible = features.loc[features["screening_date"] <= pd.Timestamp("2021-12-31")].copy()
+    eligible = features.loc[features["screening_date"] <= pd.Timestamp(CLUSTERING.eligibility_cutoff)].copy()
     latest = (
         eligible.sort_values(["person_id", "screening_date"])
         .groupby("person_id", as_index=False)
@@ -40,20 +41,20 @@ def main() -> None:
         "hpv_genotype_multiple_hr",
         "cytology_result_HSIL",
         "cytology_result_ASC-H",
-        "outcome_cin2_3yr",
+        MODELING.primary_target,
     ]
     cluster_features = [c for c in cluster_features if c in latest.columns]
     x = latest[cluster_features].fillna(0)
     scaled = StandardScaler().fit_transform(x)
 
-    model = KMeans(n_clusters=4, random_state=42, n_init=20)
+    model = KMeans(n_clusters=CLUSTERING.n_clusters, random_state=CLUSTERING.random_seed, n_init=20)
     latest["cluster"] = model.fit_predict(scaled)
     latest.to_parquet(PROCESSED_DIR / "latest_clustered.parquet", index=False)
 
     profile_cols = {
         "person_id": "count",
         "age": "mean",
-        "outcome_cin2_3yr": "mean",
+        MODELING.primary_target: "mean",
         "hrhpv_positive": "mean",
         "persistent_hrhpv": "mean",
         "ever_had_abnormal_cyto": "mean",

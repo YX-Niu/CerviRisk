@@ -6,10 +6,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from src.config import INCOMING_DIR, INGESTION, RAW_PATH, SIMULATION
+except ModuleNotFoundError:
+    from config import INCOMING_DIR, INGESTION, RAW_PATH, SIMULATION
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_RAW_PATH = Path("data/raw/screening_records.parquet")
-DEFAULT_BATCH_PATH = Path("data/incoming/batch_date=2024-01-01/screening_records.parquet")
+DEFAULT_RAW_PATH = RAW_PATH
+DEFAULT_BATCH_PATH = INCOMING_DIR / f"batch_date={INGESTION.batch_date.isoformat()}" / "screening_records.parquet"
 
 
 def run_step(name: str, command: list[str]) -> None:
@@ -28,9 +32,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Generate demo raw data before preprocessing. Keep this off when raw data comes from a database/export.",
     )
-    parser.add_argument("--bootstrap-n-women", type=int, default=22000, help="Number of synthetic women for demo bootstrap.")
+    parser.add_argument("--bootstrap-n-women", type=int, default=SIMULATION.n_women, help="Number of synthetic women for demo bootstrap.")
     parser.add_argument("--skip-ingestion", action="store_true", help="Skip the simulated monthly incoming batch step.")
-    parser.add_argument("--batch-date", default="2024-01-01", help="Batch date for simulated monthly ingestion.")
+    parser.add_argument("--batch-date", default=INGESTION.batch_date.isoformat(), help="Batch date for simulated monthly ingestion.")
     parser.add_argument("--current-batch", type=Path, default=DEFAULT_BATCH_PATH, help="Batch used by drift monitoring.")
     parser.add_argument("--skip-explain", action="store_true", help="Skip SHAP plots for a faster smoke run.")
     parser.add_argument("--skip-clustering", action="store_true", help="Skip K-Means cohort profiling.")

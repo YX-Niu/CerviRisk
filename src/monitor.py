@@ -11,13 +11,8 @@ from scipy.stats import chi2_contingency, ks_2samp
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from src.config import INCOMING_DIR, MONITORING, RAW_PATH, REPORT_DIR, SPLITS
 from src.data_simulator import SimulatorConfig, generate_screening_data
-
-
-PROCESSED_DIR = Path("data/processed")
-REPORT_DIR = Path("reports")
-RAW_PATH = Path("data/raw/screening_records.parquet")
-INCOMING_DIR = Path("data/incoming")
 
 
 def categorical_drift(reference: pd.Series, current: pd.Series) -> dict:
@@ -26,12 +21,12 @@ def categorical_drift(reference: pd.Series, current: pd.Series) -> dict:
     levels = sorted(set(ref_counts.index).union(cur_counts.index))
     table = np.array([[ref_counts.get(level, 0) for level in levels], [cur_counts.get(level, 0) for level in levels]])
     _, p_value, _, _ = chi2_contingency(table + 1)
-    return {"test": "chi_square", "p_value": float(p_value), "drift_detected": bool(p_value < 0.01)}
+    return {"test": "chi_square", "p_value": float(p_value), "drift_detected": bool(p_value < MONITORING.p_value_threshold)}
 
 
 def numeric_drift(reference: pd.Series, current: pd.Series) -> dict:
     stat, p_value = ks_2samp(reference.dropna(), current.dropna())
-    return {"test": "ks", "statistic": float(stat), "p_value": float(p_value), "drift_detected": bool(p_value < 0.01)}
+    return {"test": "ks", "statistic": float(stat), "p_value": float(p_value), "drift_detected": bool(p_value < MONITORING.p_value_threshold)}
 
 
 def latest_incoming_batch() -> Path | None:
@@ -43,12 +38,19 @@ def latest_incoming_batch() -> Path | None:
 
 def load_current_batch(path: Path | None, inject_demo_drift: bool) -> pd.DataFrame:
     if path is None:
-        batch = generate_screening_data(SimulatorConfig(n_women=900, start_year=2024, end_year=2025, seed=2026))
+        batch = generate_screening_data(
+            SimulatorConfig(
+                n_women=MONITORING.fallback_n_women,
+                start_year=MONITORING.fallback_start_year,
+                end_year=MONITORING.fallback_end_year,
+                seed=MONITORING.fallback_seed,
+            )
+        )
     else:
         batch = pd.read_parquet(path)
     if inject_demo_drift:
         batch = batch.copy()
-        batch.loc[batch.sample(frac=0.18, random_state=7).index, "hpv_genotype"] = "other_hr"
+        batch.loc[batch.sample(frac=MONITORING.demo_drift_fraction, random_state=7).index, "hpv_genotype"] = "other_hr"
     return batch
 
 
@@ -63,7 +65,7 @@ def main() -> None:
     args = parse_args()
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     reference = pd.read_parquet(RAW_PATH)
-    train_dates = pd.to_datetime(reference["screening_date"]).dt.year.between(2010, 2018)
+    train_dates = pd.to_datetime(reference["screening_date"]).dt.year.between(SPLITS.train_start_year, SPLITS.train_end_year)
     reference = reference.loc[train_dates]
 
     current_batch_path = args.current_batch or latest_incoming_batch()

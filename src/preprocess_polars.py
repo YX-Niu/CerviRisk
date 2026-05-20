@@ -5,10 +5,10 @@ from pathlib import Path
 
 import polars as pl
 
-
-RAW_PATH = Path("data/raw/screening_records.parquet")
-PROCESSED_DIR = Path("data/processed")
-
+try:
+    from src.config import PROCESSED_DIR, RAW_PATH
+except ModuleNotFoundError:
+    from config import PROCESSED_DIR, RAW_PATH
 
 def scan_input(path: Path) -> pl.LazyFrame:
     if path.is_dir():

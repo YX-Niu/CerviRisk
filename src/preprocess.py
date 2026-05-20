@@ -7,9 +7,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
-RAW_PATH = Path("data/raw/screening_records.parquet")
-PROCESSED_DIR = Path("data/processed")
+try:
+    from src.config import PROCESSED_DIR, RAW_PATH, SPLITS
+except ModuleNotFoundError:
+    from config import PROCESSED_DIR, RAW_PATH, SPLITS
 
 TARGETS = ["outcome_cin2_1yr", "outcome_cin2_3yr", "outcome_cin2_5yr"]
 ID_COLUMNS = ["person_id", "screening_date"]
@@ -110,10 +111,10 @@ def build_dataset(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, list[str]]
 def split_by_time(features: pd.DataFrame) -> dict[str, pd.DataFrame]:
     dates = pd.to_datetime(features["screening_date"])
     return {
-        "train": features.loc[dates.dt.year.between(2010, 2018)].copy(),
-        "validation": features.loc[dates.dt.year.between(2019, 2020)].copy(),
-        "test": features.loc[dates.dt.year.between(2021, 2022)].copy(),
-        "future_holdout": features.loc[dates.dt.year >= 2023].copy(),
+        "train": features.loc[dates.dt.year.between(SPLITS.train_start_year, SPLITS.train_end_year)].copy(),
+        "validation": features.loc[dates.dt.year.between(SPLITS.validation_start_year, SPLITS.validation_end_year)].copy(),
+        "test": features.loc[dates.dt.year.between(SPLITS.test_start_year, SPLITS.test_end_year)].copy(),
+        "future_holdout": features.loc[dates.dt.year >= SPLITS.future_holdout_start_year].copy(),
     }
 
 
@@ -142,10 +143,10 @@ def main() -> None:
         "numeric_columns": NUMERIC_COLUMNS,
         "category_levels": category_levels,
         "split_policy": {
-            "train": "2010-2018",
-            "validation": "2019-2020",
-            "test": "2021-2022",
-            "future_holdout": "2023+",
+            "train": f"{SPLITS.train_start_year}-{SPLITS.train_end_year}",
+            "validation": f"{SPLITS.validation_start_year}-{SPLITS.validation_end_year}",
+            "test": f"{SPLITS.test_start_year}-{SPLITS.test_end_year}",
+            "future_holdout": f"{SPLITS.future_holdout_start_year}+",
         },
     }
     (args.processed_dir / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")

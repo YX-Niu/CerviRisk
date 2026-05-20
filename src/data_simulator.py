@@ -8,16 +8,18 @@ from typing import Iterator
 import numpy as np
 import pandas as pd
 
-
-RAW_PATH = Path("data/raw/screening_records.parquet")
+try:
+    from src.config import RAW_PATH, SIMULATION
+except ModuleNotFoundError:
+    from config import RAW_PATH, SIMULATION
 
 
 @dataclass(frozen=True)
 class SimulatorConfig:
-    n_women: int = 22000
-    start_year: int = 2010
-    end_year: int = 2024
-    seed: int = 42
+    n_women: int = SIMULATION.n_women
+    start_year: int = SIMULATION.start_year
+    end_year: int = SIMULATION.end_year
+    seed: int = SIMULATION.seed
 
 
 CYTO_RESULTS = ["NILM", "ASC-US", "LSIL", "ASC-H", "HSIL", "AGC"]
@@ -247,10 +249,10 @@ def _write_year_partitioned(df: pd.DataFrame, output: Path, chunk_id: int) -> No
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate synthetic longitudinal CerviRisk screening records.")
-    parser.add_argument("--n-women", type=int, default=22000)
-    parser.add_argument("--start-year", type=int, default=2010)
-    parser.add_argument("--end-year", type=int, default=2024)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--n-women", type=int, default=SIMULATION.n_women)
+    parser.add_argument("--start-year", type=int, default=SIMULATION.start_year)
+    parser.add_argument("--end-year", type=int, default=SIMULATION.end_year)
+    parser.add_argument("--seed", type=int, default=SIMULATION.seed)
     parser.add_argument("--output", type=Path, default=RAW_PATH)
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--partition-by-year", action="store_true")

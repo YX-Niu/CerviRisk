@@ -20,6 +20,8 @@ The command above runs the self-contained demo from simulated ingestion through 
 python src/run_pipeline.py --raw-input data/raw/screening_records.parquet
 ```
 
+Default knobs such as synthetic cohort size, simulation years, random seeds, train/validation/test years, primary target, clustering settings, and drift thresholds live in `src/config.py`. Most day-to-day tuning should start there; command-line flags are still available for one-off overrides.
+
 To run the stages manually:
 
 ```bash

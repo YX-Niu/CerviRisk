@@ -13,10 +13,13 @@ import numpy as np
 import pandas as pd
 import shap
 
+try:
+    from src.config import MODELING, PROCESSED_DIR, REPORT_DIR
+except ModuleNotFoundError:
+    from config import MODELING, PROCESSED_DIR, REPORT_DIR
 
-PROCESSED_DIR = Path("data/processed")
-MODEL_PATH = Path("models/xgb_cin2_3yr.pkl")
-REPORT_DIR = Path("reports")
+
+MODEL_PATH = Path("models") / f"xgb_{MODELING.primary_target.replace('outcome_', '')}.pkl"
 
 
 def main() -> None:
@@ -40,14 +43,15 @@ def main() -> None:
     test = test.assign(risk_probability=probabilities)
     high_risk_idx = int(np.argmax(probabilities))
     low_risk_idx = int(np.argmin(probabilities))
-    false_negative_pool = test[(test["outcome_cin2_3yr"] == 1) & (test["risk_probability"] < 0.5)]
+    false_negative_pool = test[(test[MODELING.primary_target] == 1) & (test["risk_probability"] < 0.5)]
     false_negative_idx = int(false_negative_pool.index[0]) if not false_negative_pool.empty else high_risk_idx
 
     cases = test.iloc[[high_risk_idx, low_risk_idx]].copy()
     if false_negative_idx in test.index:
         cases = pd.concat([cases, test.loc[[false_negative_idx]]], ignore_index=True)
     cases["case_type"] = ["high_risk", "low_risk", "possible_false_negative"][: len(cases)]
-    cases[["case_type", "person_id", "screening_date", "risk_probability", "outcome_cin2_3yr"]].to_csv(
+    case_summary_columns = ["case_type", "person_id", "screening_date", "risk_probability", MODELING.primary_target]
+    cases[case_summary_columns].to_csv(
         REPORT_DIR / "shap_case_examples.csv", index=False
     )
 
@@ -63,7 +67,7 @@ def main() -> None:
         shap.save_html(str(REPORT_DIR / f"shap_force_{case_type}.html"), force)
 
     print(f"Saved {REPORT_DIR / 'shap_summary_bar.png'}")
-    print(cases[["case_type", "person_id", "risk_probability", "outcome_cin2_3yr"]].to_string(index=False))
+    print(cases[["case_type", "person_id", "risk_probability", MODELING.primary_target]].to_string(index=False))
 
 
 if __name__ == "__main__":

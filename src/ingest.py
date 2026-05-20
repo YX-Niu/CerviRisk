@@ -11,10 +11,8 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from src.config import INCOMING_DIR, INGESTION
 from src.data_simulator import SimulatorConfig, generate_screening_data
-
-
-INCOMING_DIR = Path("data/incoming")
 
 
 def simulate_monthly_batch(batch_date: date, n_records: int, seed: int) -> pd.DataFrame:
@@ -48,9 +46,9 @@ def write_manifest(batch_path: Path, batch: pd.DataFrame, cadence: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Simulate a monthly incoming CerviRisk screening batch.")
-    parser.add_argument("--batch-date", type=date.fromisoformat, default=date(2024, 1, 1))
-    parser.add_argument("--n-records", type=int, default=750)
-    parser.add_argument("--seed", type=int, default=202401)
+    parser.add_argument("--batch-date", type=date.fromisoformat, default=INGESTION.batch_date)
+    parser.add_argument("--n-records", type=int, default=INGESTION.n_records)
+    parser.add_argument("--seed", type=int, default=INGESTION.seed)
     parser.add_argument("--output-dir", type=Path, default=INCOMING_DIR)
     return parser.parse_args()
 

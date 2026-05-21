@@ -29,7 +29,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", type=Path, default=None, help="Existing monthly batch parquet. If omitted, a synthetic monthly batch is generated.")
     parser.add_argument("--batch-date", default=INGESTION.batch_date.isoformat())
     parser.add_argument("--prediction-output", type=Path, default=DEFAULT_PREDICTION_PATH)
-    parser.add_argument("--skip-monitoring", action="store_true")
     parser.add_argument("--inject-demo-drift", action="store_true")
     return parser.parse_args()
 
@@ -55,16 +54,15 @@ def main() -> None:
         ],
     )
 
-    if not args.skip_monitoring:
-        command = [
-            python,
-            "src/monitor/drift.py",
-            "--current-batch",
-            str(batch_path),
-        ]
-        if args.inject_demo_drift:
-            command.append("--inject-demo-drift")
-        run_step("data drift monitoring", command)
+    command = [
+        python,
+        "src/monitor/drift.py",
+        "--current-batch",
+        str(batch_path),
+    ]
+    if args.inject_demo_drift:
+        command.append("--inject-demo-drift")
+    run_step("data drift monitoring", command)
 
     print("\nPrediction pipeline complete. Outputs are in data/predictions/ and reports/.")
 

@@ -20,9 +20,10 @@ The command above runs the self-contained demo from synthetic raw data generatio
 python src/run_pipeline.py --raw-input data/raw/screening_records.parquet
 ```
 
-After models have been trained, run the monthly prediction/monitoring pipeline:
+You can also run the two production lifecycle pipelines separately. The training pipeline builds historical features and model artifacts; the prediction pipeline handles a monthly incoming batch, writes predictions, and always produces a drift monitoring report:
 
 ```bash
+python src/pipelines/training_pipeline.py --bootstrap-synthetic
 python src/pipelines/prediction_pipeline.py --batch-date 2024-01-01 --inject-demo-drift
 ```
 
@@ -151,7 +152,7 @@ src/data/            Data ingestion, simulation, and future source adapters
 src/features/        Preprocessing and feature engineering
 src/models/          Training, clustering, and model explanations
 src/monitor/         Drift checks and monitoring utilities
-src/pipelines/       End-to-end training and monthly prediction orchestration
+src/pipelines/       Training and monthly prediction orchestration
 ```
 
 ## Notes

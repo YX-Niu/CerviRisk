@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT / "data/processed"
 MODEL_DIR = ROOT / "models"
 

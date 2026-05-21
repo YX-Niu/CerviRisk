@@ -6,12 +6,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.config import RAW_PATH, SIMULATION
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_step(name: str, command: list[str]) -> None:
@@ -48,7 +48,7 @@ def main() -> None:
                 "historical synthetic raw data bootstrap",
                 [
                     python,
-                    "src/data/simulator.py",
+                    "src/ingestion/simulator.py",
                     "--n-women",
                     str(args.bootstrap_n_women),
                     "--output",
@@ -65,13 +65,13 @@ def main() -> None:
     steps.extend(
         [
             ("preprocessing and feature engineering", [python, "src/features/preprocess.py", "--raw-input", str(raw_input)]),
-            ("model training", [python, "src/models/train.py"]),
+            ("model training", [python, "src/modeling/train.py"]),
         ]
     )
     if not args.skip_clustering:
-        steps.append(("unsupervised cluster profiling", [python, "src/models/clustering.py"]))
+        steps.append(("unsupervised cluster profiling", [python, "src/modeling/clustering.py"]))
     if not args.skip_explain:
-        steps.append(("model explanations", [python, "src/models/explain.py"]))
+        steps.append(("model explanations", [python, "src/modeling/explain.py"]))
 
     for name, command in steps:
         run_step(name, command)

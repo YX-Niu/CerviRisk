@@ -6,12 +6,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.config import INCOMING_DIR, INGESTION
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BATCH_PATH = INCOMING_DIR / f"batch_date={INGESTION.batch_date.isoformat()}" / "screening_records.parquet"
 DEFAULT_PREDICTION_PATH = Path("data/predictions") / f"batch_date={INGESTION.batch_date.isoformat()}" / "predictions.parquet"
 
@@ -40,13 +40,13 @@ def main() -> None:
 
     if args.input is None:
         batch_path = INCOMING_DIR / f"batch_date={args.batch_date}" / "screening_records.parquet"
-        run_step("monthly ingestion batch", [python, "src/data/ingest.py", "--batch-date", args.batch_date])
+        run_step("monthly ingestion batch", [python, "src/ingestion/ingest.py", "--batch-date", args.batch_date])
 
     run_step(
         "batch risk prediction",
         [
             python,
-            "src/models/predict_batch.py",
+            "src/modeling/predict_batch.py",
             "--input",
             str(batch_path),
             "--output",
@@ -56,7 +56,7 @@ def main() -> None:
 
     command = [
         python,
-        "src/monitor/drift.py",
+        "src/monitoring/drift.py",
         "--current-batch",
         str(batch_path),
     ]

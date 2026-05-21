@@ -12,7 +12,7 @@ import pandas as pd
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.config import INCOMING_DIR, INGESTION
-from src.data.simulator import SimulatorConfig, generate_screening_data
+from src.ingestion.simulator import SimulatorConfig, generate_screening_data
 
 
 def simulate_monthly_batch(batch_date: date, n_records: int, seed: int) -> pd.DataFrame:

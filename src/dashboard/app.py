@@ -8,8 +8,21 @@ import streamlit as st
 
 
 PREDICTION_ROOT = Path("data/predictions")
+RAW_RECORDS_PATH = Path("data/raw/screening_records.parquet")
 DRIFT_REPORT = Path("reports/drift_report.json")
 PRIORITY_ORDER = ["urgent", "high", "medium", "routine"]
+HISTORY_COLUMNS = [
+    "screening_date",
+    "age",
+    "hpv_test_result",
+    "hpv_genotype",
+    "hrhpv_positive",
+    "cytology_result",
+    "histology_result",
+    "persistent_hrhpv",
+    "cin2plus_detected",
+    "treatment_performed",
+]
 
 
 def latest_prediction_file() -> Path | None:
@@ -29,6 +42,17 @@ def load_drift_report() -> dict:
     if not DRIFT_REPORT.exists():
         return {}
     return json.loads(DRIFT_REPORT.read_text(encoding="utf-8"))
+
+
+@st.cache_data
+def load_history(path: str = str(RAW_RECORDS_PATH)) -> pd.DataFrame:
+    raw_path = Path(path)
+    if not raw_path.exists():
+        return pd.DataFrame()
+    columns = ["person_id"] + HISTORY_COLUMNS
+    df = pd.read_parquet(raw_path, columns=columns)
+    df["screening_date"] = pd.to_datetime(df["screening_date"])
+    return df.sort_values(["person_id", "screening_date"])
 
 
 def format_percent(value: float) -> str:
@@ -150,6 +174,28 @@ def show_patient_detail(df: pd.DataFrame) -> None:
     ]
     available = [col for col in detail_columns if col in row.index]
     st.table(pd.DataFrame({"field": available, "value": [row[col] for col in available]}))
+
+    st.subheader("Screening History")
+    history = load_history()
+    if history.empty:
+        st.info("No historical raw records found.")
+        return
+
+    patient_history = history[history["person_id"].eq(row["person_id"])].copy()
+    if patient_history.empty:
+        st.info("No previous screening history found for this patient.")
+        return
+
+    patient_history["screening_date"] = patient_history["screening_date"].dt.date
+    previous = patient_history[pd.to_datetime(patient_history["screening_date"]) < pd.to_datetime(row["screening_date"])]
+    h1, h2, h3, h4 = st.columns(4)
+    h1.metric("Previous Screens", f"{len(previous):,}")
+    h2.metric("Prior hrHPV+", f"{int(previous['hrhpv_positive'].sum()):,}")
+    h3.metric("Prior Abnormal Cytology", f"{int(previous['cytology_result'].ne('NILM').sum()):,}")
+    h4.metric("Prior CIN2+", f"{int(previous['cin2plus_detected'].sum()):,}")
+
+    display_history = patient_history.sort_values("screening_date", ascending=False).head(8)
+    st.dataframe(display_history[HISTORY_COLUMNS], use_container_width=True, hide_index=True)
 
 
 def main() -> None:

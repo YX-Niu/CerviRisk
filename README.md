@@ -38,7 +38,7 @@ uvicorn api.app:app --reload
 Test the API:
 
 ```bash
-python api/test_request.py
+python api/predict/test_request.py
 ```
 
 ## Pipeline
@@ -94,7 +94,7 @@ Predictions are served by FastAPI:
 
 ```bash
 uvicorn api.app:app --reload
-python api/test_request.py
+python api/predict/test_request.py
 ```
 
 The `/predict` endpoint accepts one screening record with current findings and historical features. It loads the trained XGBoost artifacts and returns 1-year, 3-year, and 5-year CIN2+ risk probabilities.

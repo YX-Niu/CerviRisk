@@ -47,9 +47,6 @@ def main() -> None:
     raw_input = args.raw_input
     steps = []
 
-    if not args.skip_ingestion:
-        steps.append(("monthly ingestion batch", [python, "src/data/ingest.py", "--batch-date", args.batch_date]))
-
     if args.bootstrap_synthetic:
         steps.append(
             (
@@ -80,6 +77,8 @@ def main() -> None:
         steps.append(("unsupervised cluster profiling", [python, "src/models/clustering.py"]))
     if not args.skip_explain:
         steps.append(("model explanations", [python, "src/models/explain.py"]))
+    if not args.skip_ingestion:
+        steps.append(("monthly ingestion batch for serving/monitoring", [python, "src/data/ingest.py", "--batch-date", args.batch_date]))
     steps.append(
         (
             "data drift monitoring",

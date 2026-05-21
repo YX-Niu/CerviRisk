@@ -14,7 +14,7 @@ pip install -r requirements.txt
 python src/run_pipeline.py --bootstrap-synthetic
 ```
 
-The command above runs the self-contained demo from simulated ingestion through drift monitoring. The default synthetic bootstrap generates about 22,000 women and roughly 100,000 longitudinal screening records. In production-style use, `run_pipeline.py` expects raw longitudinal records to already exist from an ingestion layer, database export, or registry file:
+The command above runs the self-contained demo from synthetic raw data generation through training, monthly new-data ingestion, and drift monitoring. The default synthetic bootstrap generates about 22,000 women and roughly 100,000 longitudinal screening records. In production-style use, `run_pipeline.py` expects raw longitudinal records to already exist from an ingestion layer, database export, or registry file:
 
 ```bash
 python src/run_pipeline.py --raw-input data/raw/screening_records.parquet
@@ -25,12 +25,12 @@ Default knobs such as synthetic cohort size, simulation years, random seeds, tra
 To run the stages manually:
 
 ```bash
-python src/data/ingest.py --batch-date 2024-01-01
 python src/data/simulator.py
 python src/features/preprocess.py --raw-input data/raw/screening_records.parquet
 python src/models/train.py
 python src/models/clustering.py
 python src/models/explain.py
+python src/data/ingest.py --batch-date 2024-01-01
 python src/monitor/drift.py
 uvicorn api.app:app --reload
 ```
@@ -45,7 +45,7 @@ python api/test_request.py
 
 ```mermaid
 flowchart LR
-    A[Monthly incoming screening batch] --> B[Raw registry-style Parquet]
+    A[Historical registry export or synthetic bootstrap] --> B[Raw registry-style Parquet]
     B --> C[Leakage-aware preprocessing]
     C --> D[Time split train/validation/test]
     D --> E[Logistic Regression]
@@ -54,12 +54,13 @@ flowchart LR
     G --> H[SHAP explanations]
     C --> I[K-Means risk clusters]
     G --> J[FastAPI /predict]
-    A --> K[Drift monitoring]
+    L[Monthly incoming screening batch] --> K[Drift monitoring]
+    L --> J
 ```
 
 ## Data Ingestion Cadence
 
-CerviRisk uses simulated monthly batch ingestion. Cervical screening events are generated as registry-style batches under `data/incoming/batch_date=YYYY-MM-DD/`, with a manifest at `data/incoming/manifest.jsonl`.
+CerviRisk uses simulated monthly batch ingestion for new data after the training pipeline has produced model artifacts. Cervical screening events are generated as registry-style batches under `data/incoming/batch_date=YYYY-MM-DD/`, with a manifest at `data/incoming/manifest.jsonl`.
 
 Monthly cadence is a deliberate design choice: cervical screening programs usually accumulate laboratory, cytology, histology, and registry updates in scheduled batches rather than second-level streams. The same ingestion boundary can be replaced by a real registry export, API pull, or database query. `run_pipeline.py` does not hard-code the data generator; it accepts `--raw-input`, while `--bootstrap-synthetic` is only a local demo convenience.
 

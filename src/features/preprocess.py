@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
     from src.config import PROCESSED_DIR, RAW_PATH, SPLITS

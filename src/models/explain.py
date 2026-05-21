@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import joblib
@@ -12,6 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shap
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
     from src.config import MODELING, PROCESSED_DIR, REPORT_DIR

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import polars as pl
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
     from src.config import PROCESSED_DIR, RAW_PATH

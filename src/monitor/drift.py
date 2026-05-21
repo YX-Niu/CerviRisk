@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency, ks_2samp
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.config import INCOMING_DIR, MONITORING, RAW_PATH, REPORT_DIR, SPLITS
-from src.data_simulator import SimulatorConfig, generate_screening_data
+from src.data.simulator import SimulatorConfig, generate_screening_data
 
 
 def categorical_drift(reference: pd.Series, current: pd.Series) -> dict:

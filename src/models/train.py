@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from xgboost import XGBClassifier
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
     from src.config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR

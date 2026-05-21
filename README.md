@@ -25,13 +25,13 @@ Default knobs such as synthetic cohort size, simulation years, random seeds, tra
 To run the stages manually:
 
 ```bash
-python src/ingest.py --batch-date 2024-01-01
-python src/data_simulator.py
-python src/preprocess.py --raw-input data/raw/screening_records.parquet
-python src/train.py
-python src/clustering.py
-python src/explain.py
-python src/monitor.py
+python src/data/ingest.py --batch-date 2024-01-01
+python src/data/simulator.py
+python src/features/preprocess.py --raw-input data/raw/screening_records.parquet
+python src/models/train.py
+python src/models/clustering.py
+python src/models/explain.py
+python src/monitor/drift.py
 uvicorn api.app:app --reload
 ```
 
@@ -98,7 +98,7 @@ python api/test_request.py
 
 The `/predict` endpoint accepts one screening record with current findings and historical features. It loads the trained XGBoost artifacts and returns 1-year, 3-year, and 5-year CIN2+ risk probabilities.
 
-Data shift is checked after new batches arrive. `src/monitor.py` reads the latest monthly batch from `data/incoming/` unless a specific batch is provided with `--current-batch`. Numeric variables use a KS test, categorical variables use a chi-square test, and `reports/drift_report.json` records which monitored features exceed the drift threshold. In production, repeated drift warnings would trigger data-quality review, subgroup performance checks, and model retraining.
+Data shift is checked after new batches arrive. `src/monitor/drift.py` reads the latest monthly batch from `data/incoming/` unless a specific batch is provided with `--current-batch`. Numeric variables use a KS test, categorical variables use a chi-square test, and `reports/drift_report.json` records which monitored features exceed the drift threshold. In production, repeated drift warnings would trigger data-quality review, subgroup performance checks, and model retraining.
 
 ## Scalability by Design
 
@@ -106,37 +106,42 @@ CerviRisk is structured so the same pipeline can scale from a local demo to regi
 
 - The simulator can be run with `--n-women 500000` and `--chunk-size` to generate 500,000 women and multi-million-row longitudinal screening data without holding the full dataset in memory.
 - Raw records can be written as year-partitioned Parquet with `--partition-by-year`, enabling efficient yearly reads for incremental preprocessing and monitoring.
-- Feature engineering has both the default Pandas path (`src/preprocess.py`) and a Polars path (`src/preprocess_polars.py`) for faster lazy scans over larger Parquet datasets.
+- Feature engineering has both the default Pandas path (`src/features/preprocess.py`) and a Polars path (`src/features/preprocess_polars.py`) for faster lazy scans over larger Parquet datasets.
 - XGBoost training includes a Dask-XGBoost switch via `CERVIRISK_USE_DASK_XGB=1`, giving the training code a migration path from local execution to a distributed cluster.
 - Pipeline schemas mirror NKCx-style cervical screening registry concepts: person identifier, screening date, HPV genotype, cytology, histology, treatment, and longitudinal follow-up outcomes. Connecting real registry data should therefore require replacing the data-reading adapter rather than rewriting the full pipeline.
 
 Large synthetic registry example:
 
 ```bash
-python src/data_simulator.py \
+python src/data/simulator.py \
   --n-women 500000 \
   --chunk-size 25000 \
   --output data/raw/screening_records_partitioned \
   --partition-by-year
 
-python src/preprocess_polars.py \
+python src/features/preprocess_polars.py \
   --input data/raw/screening_records_partitioned \
   --output data/processed/features_polars_partitioned \
   --partition-by-year
 
-CERVIRISK_USE_DASK_XGB=1 python src/train.py
+CERVIRISK_USE_DASK_XGB=1 python src/models/train.py
 ```
 
 ## Repository Layout
 
 ```text
 api/                 FastAPI inference app and sample request
+api/predict/         Prediction endpoint implementation
 data/incoming/       Simulated monthly ingestion batches
 data/raw/            Simulated raw screening records
 data/processed/      Feature matrices, labels, split files, metadata
 models/              Trained model artifacts
 reports/             Evaluation tables, figures, SHAP outputs, drift logs
-src/                 Data simulation, preprocessing, training, monitoring
+src/config.py        Centralized tuning defaults
+src/data/            Data ingestion, simulation, and future source adapters
+src/features/        Preprocessing and feature engineering
+src/models/          Training, clustering, and model explanations
+src/monitor/         Drift checks and monitoring utilities
 ```
 
 ## Notes

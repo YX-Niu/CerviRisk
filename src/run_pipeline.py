@@ -48,7 +48,7 @@ def main() -> None:
     steps = []
 
     if not args.skip_ingestion:
-        steps.append(("monthly ingestion batch", [python, "src/ingest.py", "--batch-date", args.batch_date]))
+        steps.append(("monthly ingestion batch", [python, "src/data/ingest.py", "--batch-date", args.batch_date]))
 
     if args.bootstrap_synthetic:
         steps.append(
@@ -56,7 +56,7 @@ def main() -> None:
                 "demo raw data bootstrap",
                 [
                     python,
-                    "src/data_simulator.py",
+                    "src/data/simulator.py",
                     "--n-women",
                     str(args.bootstrap_n_women),
                     "--output",
@@ -72,20 +72,20 @@ def main() -> None:
 
     steps.extend(
         [
-            ("preprocessing and feature engineering", [python, "src/preprocess.py", "--raw-input", str(raw_input)]),
-            ("model training", [python, "src/train.py"]),
+            ("preprocessing and feature engineering", [python, "src/features/preprocess.py", "--raw-input", str(raw_input)]),
+            ("model training", [python, "src/models/train.py"]),
         ]
     )
     if not args.skip_clustering:
-        steps.append(("unsupervised cluster profiling", [python, "src/clustering.py"]))
+        steps.append(("unsupervised cluster profiling", [python, "src/models/clustering.py"]))
     if not args.skip_explain:
-        steps.append(("model explanations", [python, "src/explain.py"]))
+        steps.append(("model explanations", [python, "src/models/explain.py"]))
     steps.append(
         (
             "data drift monitoring",
             [
                 python,
-                "src/monitor.py",
+                "src/monitor/drift.py",
                 "--current-batch",
                 str(args.current_batch),
                 "--inject-demo-drift",

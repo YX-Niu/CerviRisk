@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import matplotlib
+import sys
 from pathlib import Path
 
 matplotlib.use("Agg")
@@ -9,6 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
     from src.config import CLUSTERING, MODELING, PROCESSED_DIR, REPORT_DIR

@@ -4,6 +4,12 @@ CerviRisk is an end-to-end machine learning system for cervical cancer screening
 
 The project is self-contained: a reviewer can clone it, install dependencies, and run the full training and prediction workflow locally.
 
+## Why This ML Layer?
+
+National cervical screening programs already provide guideline-based screening, invitations, testing, follow-up, and population-level quality monitoring. CerviRisk is not intended to replace that system. Instead, it demonstrates an additional patient-level risk stratification layer on top of registry-style screening data.
+
+The goal is to help prioritize monthly follow-up work: highlight women who may need earlier clinical review, combine current HPV/cytology results with screening history, surface high-risk patterns, and monitor whether incoming data has shifted over time.
+
 ## Quick Start
 
 ```bash

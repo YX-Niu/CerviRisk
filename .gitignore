@@ -12,6 +12,7 @@ Gemini_Generated_Image_fzqw06fzqw06fzqw.png
 # Generated outputs are reproducible from the scripts.
 data/raw/*.parquet
 data/incoming/
+data/predictions/
 data/processed/*.parquet
 data/processed/*.json
 models/*.pkl

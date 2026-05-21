@@ -20,6 +20,12 @@ The command above runs the self-contained demo from synthetic raw data generatio
 python src/run_pipeline.py --raw-input data/raw/screening_records.parquet
 ```
 
+After models have been trained, run the monthly prediction/monitoring pipeline:
+
+```bash
+python src/pipelines/prediction_pipeline.py --batch-date 2024-01-01 --inject-demo-drift
+```
+
 Default knobs such as synthetic cohort size, simulation years, random seeds, train/validation/test years, primary target, clustering settings, and drift thresholds live in `src/config.py`. Most day-to-day tuning should start there; command-line flags are still available for one-off overrides.
 
 To run the stages manually:
@@ -31,6 +37,7 @@ python src/models/train.py
 python src/models/clustering.py
 python src/models/explain.py
 python src/data/ingest.py --batch-date 2024-01-01
+python src/models/predict_batch.py --input data/incoming/batch_date=2024-01-01/screening_records.parquet
 python src/monitor/drift.py
 uvicorn api.app:app --reload
 ```
@@ -134,6 +141,7 @@ CERVIRISK_USE_DASK_XGB=1 python src/models/train.py
 api/                 FastAPI inference app and sample request
 api/predict/         Prediction endpoint implementation
 data/incoming/       Simulated monthly ingestion batches
+data/predictions/    Batch prediction outputs
 data/raw/            Simulated raw screening records
 data/processed/      Feature matrices, labels, split files, metadata
 models/              Trained model artifacts
@@ -143,6 +151,7 @@ src/data/            Data ingestion, simulation, and future source adapters
 src/features/        Preprocessing and feature engineering
 src/models/          Training, clustering, and model explanations
 src/monitor/         Drift checks and monitoring utilities
+src/pipelines/       End-to-end training and monthly prediction orchestration
 ```
 
 ## Notes

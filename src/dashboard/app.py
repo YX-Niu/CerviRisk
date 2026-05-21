@@ -35,6 +35,37 @@ def format_percent(value: float) -> str:
     return f"{value:.1%}"
 
 
+def risk_column_config() -> dict:
+    return {
+        "risk_cin2_1yr": st.column_config.ProgressColumn(
+            "1-year CIN2+ risk",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
+        ),
+        "risk_cin2_3yr": st.column_config.ProgressColumn(
+            "3-year CIN2+ risk",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
+        ),
+        "risk_cin2_5yr": st.column_config.ProgressColumn(
+            "5-year CIN2+ risk",
+            format="%.1f%%",
+            min_value=0,
+            max_value=100,
+        ),
+    }
+
+
+def to_display_percent(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for col in ["risk_cin2_1yr", "risk_cin2_3yr", "risk_cin2_5yr"]:
+        if col in df:
+            df[col] = df[col] * 100
+    return df
+
+
 def priority_rank(series: pd.Series) -> pd.Series:
     ranks = {name: index for index, name in enumerate(PRIORITY_ORDER)}
     return series.map(ranks).fillna(len(PRIORITY_ORDER))
@@ -94,11 +125,14 @@ def show_patient_detail(df: pd.DataFrame) -> None:
     selected_label = st.selectbox("Patient review", labels.tolist())
     row = df.iloc[labels.tolist().index(selected_label)]
 
+    st.subheader("Model Risk Reference")
     left, middle, right = st.columns(3)
     left.metric("1-year risk", format_percent(float(row["risk_cin2_1yr"])))
     middle.metric("3-year risk", format_percent(float(row["risk_cin2_3yr"])))
     right.metric("5-year risk", format_percent(float(row["risk_cin2_5yr"])))
+    st.caption("Risk values are model estimates for CIN2+ and should support, not replace, clinical judgement.")
 
+    st.subheader("Clinical Context")
     detail_columns = [
         "person_id",
         "screening_date",
@@ -168,7 +202,12 @@ def main() -> None:
         ]
         available = [col for col in queue_columns if col in filtered.columns]
         queue = filtered.sort_values(["priority_rank", "risk_cin2_3yr"], ascending=[True, False])[available]
-        st.dataframe(queue, use_container_width=True, hide_index=True)
+        st.dataframe(
+            to_display_percent(queue),
+            use_container_width=True,
+            hide_index=True,
+            column_config=risk_column_config(),
+        )
 
     with tab_patient:
         show_patient_detail(filtered)

@@ -11,6 +11,7 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 from src.db import DB_PATH, query_patient_history
+from src.config import SIMULATION, SPLITS
 
 PREDICTION_ROOT = Path("data/predictions")
 INCOMING_DIR = Path("data/incoming")
@@ -386,7 +387,7 @@ def tab_data() -> None:
             "Random seed", "CIN2+ prevalence", "HPV vaccination rate",
             "Immunosuppressed fraction", "Smoking (current)",
         ],
-        "Value": ["22,000", "2010 – 2026", "5", "42 (fully reproducible)",
+        "Value": [f"{SIMULATION.n_women:,}", f"{SIMULATION.start_year} – {SIMULATION.end_year}", "5", f"{SIMULATION.seed} (fully reproducible)",
                   "~1.2 %", "42 % (born ≥1988) / 12 % (older)",
                   "4.5 %", "17 %"],
         "Clinical basis": [
@@ -505,29 +506,44 @@ def tab_data() -> None:
 
 # ══════════════════════ TAB 3 — FEATURE ENGINEERING ═════════════════════════
 
+def _split_row_counts() -> dict[str, int]:
+    processed = Path("data/processed")
+    counts = {}
+    for name in ("train", "validation", "test", "future_holdout"):
+        p = processed / f"{name}.parquet"
+        if p.exists():
+            import pyarrow.parquet as pq
+            counts[name] = pq.read_metadata(p).num_rows
+    return counts
+
+
 def tab_features() -> None:
     # Time split Gantt
     st.subheader("Time-Based Train / Validation / Test Split")
+    row_counts = _split_row_counts()
     splits = [
-        ("Training",      2010, 2018, 63042,  "#4e79a7"),
-        ("Validation",    2019, 2020, 13990,  "#59a14f"),
-        ("Test",          2021, 2022, 14756,  "#f28e2b"),
-        ("Future Holdout",2023, 2026, 14769,  "#e15759"),
+        ("Training",       SPLITS.train_start_year,          SPLITS.train_end_year,          "train",          "#4e79a7"),
+        ("Validation",     SPLITS.validation_start_year,     SPLITS.validation_end_year,     "validation",     "#59a14f"),
+        ("Test",           SPLITS.test_start_year,           SPLITS.test_end_year,           "test",           "#f28e2b"),
+        ("Future Holdout", SPLITS.future_holdout_start_year, SIMULATION.end_year,            "future_holdout", "#e15759"),
     ]
     fig = go.Figure()
-    for name, start, end, rows, col in splits:
+    for name, start, end, key, col in splits:
+        rows = row_counts.get(key)
+        label = f"  {rows:,} rows" if rows else f"  {start}–{end}"
+        hover = f"{name}: {start}–{end}" + (f", {rows:,} rows" if rows else "") + "<extra></extra>"
         fig.add_trace(go.Bar(
             name=name, x=[end - start], y=[name],
             base=start, orientation="h",
             marker_color=col, opacity=0.88,
-            text=f"  {rows:,} rows",
+            text=label,
             textposition="inside",
             insidetextanchor="start",
-            hovertemplate=f"{name}: {start}–{end}, {rows:,} rows<extra></extra>",
+            hovertemplate=hover,
         ))
     fig.update_layout(
         barmode="overlay", height=200,
-        xaxis=dict(title="Year", range=[2009, 2025.5], dtick=1),
+        xaxis=dict(title="Year", range=[SIMULATION.start_year - 1, SIMULATION.end_year + 0.5], dtick=1),
         yaxis=dict(title=""),
         showlegend=True,
         legend=dict(orientation="h", y=1.2),
@@ -1147,12 +1163,12 @@ def main() -> None:
         filtered = _apply_filters(df)
 
     tabs = st.tabs([
-        "🗺️  Pipeline & Code",
-        "🧬  Data Generation",
-        "🔧  Feature Engineering",
-        "🤖  Model Training",
-        "🚀  Inference & Serving",
-        "📡  Drift Monitoring",
+        "Pipeline & Code",
+        "Data Generation",
+        "Feature Engineering",
+        "Model Training",
+        "Inference & Serving",
+        "Drift Monitoring",
     ])
 
     with tabs[0]:

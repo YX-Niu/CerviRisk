@@ -62,10 +62,6 @@ def init_db(db_path: Path = DB_PATH) -> None:
 
 
 def insert_screening_records(df: pd.DataFrame, db_path: Path = DB_PATH, replace: bool = False) -> int:
-    """Insert a DataFrame of screening records into the DB.
-
-    Returns the number of rows inserted into screening_visits.
-    """
     init_db(db_path)
 
     patient_cols = ["person_id", "birth_year", "region", "hpv_vaccinated", "smoking_status", "immunosuppressed", "parity"]
@@ -87,7 +83,6 @@ def insert_screening_records(df: pd.DataFrame, db_path: Path = DB_PATH, replace:
 
     conflict = "REPLACE" if replace else "IGNORE"
 
-    patient_cols = list(patients.columns)
     patient_placeholders = ", ".join("?" * len(patient_cols))
     patient_sql = f"INSERT OR IGNORE INTO patients ({', '.join(patient_cols)}) VALUES ({patient_placeholders})"
 
@@ -103,7 +98,6 @@ def insert_screening_records(df: pd.DataFrame, db_path: Path = DB_PATH, replace:
 
 
 def query_all_records(db_path: Path = DB_PATH) -> pd.DataFrame:
-    """Return the full flat view (patients JOIN visits) as a DataFrame."""
     sql = """
         SELECT
             p.person_id, p.birth_year, p.region,
@@ -137,7 +131,6 @@ def query_patient_history(person_id: str, db_path: Path = DB_PATH) -> pd.DataFra
 
 
 def query_batch_by_date(batch_date: str, db_path: Path = DB_PATH) -> pd.DataFrame:
-    """Return all records ingested on a specific batch_date (YYYY-MM-DD)."""
     sql = """
         SELECT
             p.person_id, p.birth_year, p.region,

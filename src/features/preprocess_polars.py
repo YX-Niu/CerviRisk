@@ -8,10 +8,7 @@ import polars as pl
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-try:
-    from src.config import PROCESSED_DIR, RAW_PATH
-except ModuleNotFoundError:
-    from config import PROCESSED_DIR, RAW_PATH
+from src.config import PROCESSED_DIR, RAW_PATH
 
 def scan_input(path: Path) -> pl.LazyFrame:
     if path.is_dir():

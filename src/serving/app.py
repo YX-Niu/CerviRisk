@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +8,7 @@ import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from src.features.inference import build_inference_features, load_metadata
 
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT / "data/processed"
@@ -53,30 +53,13 @@ models: dict[str, Any] = {}
 def load_artifacts() -> None:
     global metadata, models
     if metadata is None:
-        metadata = json.loads((PROCESSED_DIR / "metadata.json").read_text(encoding="utf-8"))
+        metadata = load_metadata(PROCESSED_DIR / "metadata.json")
     if not models:
         models = {
             "1yr": joblib.load(MODEL_DIR / "xgb_cin2_1yr.pkl"),
             "3yr": joblib.load(MODEL_DIR / "xgb_cin2_3yr.pkl"),
             "5yr": joblib.load(MODEL_DIR / "xgb_cin2_5yr.pkl"),
         }
-
-
-def make_feature_row(record: ScreeningRecord) -> pd.DataFrame:
-    load_artifacts()
-    assert metadata is not None
-    data = record.model_dump(by_alias=True)
-    if data["birth_year"] is None:
-        data["birth_year"] = 2026 - int(round(float(data["age"])))
-
-    row = {col: float(data.get(col, 0.0)) for col in metadata["numeric_columns"]}
-    for col, levels in metadata["category_levels"].items():
-        value = str(data.get(col, ""))
-        for level in levels:
-            row[f"{col}_{level}"] = 1.0 if value == level else 0.0
-
-    frame = pd.DataFrame([row])
-    return frame.reindex(columns=metadata["feature_columns"], fill_value=0.0)
 
 
 @app.get("/health")
@@ -87,6 +70,10 @@ def health() -> dict[str, str]:
 @app.post("/predict")
 def predict(record: ScreeningRecord) -> dict[str, Any]:
     load_artifacts()
-    features = make_feature_row(record)
+    assert metadata is not None
+    data = record.model_dump(by_alias=True)
+    if data["birth_year"] is None:
+        data["birth_year"] = 2026 - int(round(float(data["age"])))
+    features = build_inference_features(pd.DataFrame([data]), metadata)
     risks = {window: float(model.predict_proba(features)[:, 1][0]) for window, model in models.items()}
     return {"risk_probabilities": risks, "model": "xgboost", "target": "CIN2+"}

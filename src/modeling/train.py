@@ -21,10 +21,7 @@ from xgboost import XGBClassifier
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-try:
-    from src.config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
-except ModuleNotFoundError:
-    from config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
+from src.config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
 
 PRIMARY_TARGET = MODELING.primary_target
 

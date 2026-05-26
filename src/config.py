@@ -7,7 +7,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class SimulationDefaults:
-    n_women: int = 22000
+    n_women: int = 20000
     start_year: int = 2010
     end_year: int = 2026
     seed: int = 42

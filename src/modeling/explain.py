@@ -16,13 +16,9 @@ import shap
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-try:
-    from src.config import MODELING, PROCESSED_DIR, REPORT_DIR
-except ModuleNotFoundError:
-    from config import MODELING, PROCESSED_DIR, REPORT_DIR
+from src.config import MODEL_DIR, MODELING, PROCESSED_DIR, REPORT_DIR
 
-
-MODEL_PATH = Path("models") / f"xgb_{MODELING.primary_target.replace('outcome_', '')}.pkl"
+MODEL_PATH = MODEL_DIR / f"xgb_{MODELING.primary_target.replace('outcome_', '')}.pkl"
 
 
 def main() -> None:

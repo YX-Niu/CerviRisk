@@ -11,12 +11,8 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-try:
-    from src.config import INCOMING_DIR, RAW_PATH, SIMULATION
-    from src.db import DB_PATH, insert_screening_records
-except ModuleNotFoundError:
-    from config import INCOMING_DIR, RAW_PATH, SIMULATION
-    from db import DB_PATH, insert_screening_records
+from src.config import RAW_PATH, SIMULATION
+from src.db import DB_PATH, insert_screening_records
 
 
 @dataclass(frozen=True)
@@ -252,31 +248,6 @@ def _write_year_partitioned(df: pd.DataFrame, output: Path, chunk_id: int) -> No
         )
 
 
-def write_monthly_batches(cfg: SimulatorConfig, output_dir: Path) -> int:
-    """Generate all records and split into one Parquet file per calendar month.
-
-    Each month lands in output_dir/batch_date=YYYY-MM-01/screening_records.parquet,
-    the same layout that ingest.py uses for new incoming months.
-    Returns total number of rows written.
-    """
-    print(f"Generating {cfg.n_women:,} patients ({cfg.start_year}–{cfg.end_year}) …")
-    df = generate_screening_data(cfg)
-    df["_batch_date"] = df["screening_date"].dt.to_period("M").dt.start_time.dt.date
-
-    total = 0
-    for batch_date, group in df.groupby("_batch_date", sort=True):
-        batch_dir = output_dir / f"batch_date={batch_date}"
-        batch_dir.mkdir(parents=True, exist_ok=True)
-        group.drop(columns=["_batch_date"]).to_parquet(
-            batch_dir / "screening_records.parquet", index=False
-        )
-        total += len(group)
-        print(f"  batch_date={batch_date}: {len(group):,} records")
-
-    print(f"Done — {total:,} rows across {df['_batch_date'].nunique()} months → {output_dir}")
-    return total
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate synthetic longitudinal CerviRisk screening records.")
     parser.add_argument("--n-women", type=int, default=SIMULATION.n_women)
@@ -286,13 +257,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=RAW_PATH)
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--partition-by-year", action="store_true")
-    parser.add_argument(
-        "--monthly",
-        action="store_true",
-        help="Write one Parquet file per calendar month into --monthly-dir "
-             "instead of a single flat file. Produces the same layout as ingest.py.",
-    )
-    parser.add_argument("--monthly-dir", type=Path, default=INCOMING_DIR)
     parser.add_argument("--write-db", action="store_true", help="Also write records into the SQLite database.")
     parser.add_argument("--db-path", type=Path, default=DB_PATH)
     return parser.parse_args()
@@ -306,14 +270,6 @@ def main() -> None:
         end_year=args.end_year,
         seed=args.seed,
     )
-
-    if args.monthly:
-        write_monthly_batches(cfg, output_dir=args.monthly_dir)
-        if args.write_db:
-            data = generate_screening_data(cfg)
-            n = insert_screening_records(data, db_path=args.db_path)
-            print(f"Inserted {n:,} visit rows into {args.db_path}")
-        return
 
     df = write_screening_data(
         cfg=cfg,

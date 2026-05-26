@@ -32,7 +32,6 @@ def simulate_monthly_batch(batch_date: date, n_records: int, seed: int) -> pd.Da
 
 
 def load_batch_from_db(batch_date: date, db_path: Path) -> pd.DataFrame | None:
-    """Query the DB for records already ingested on batch_date. Returns None if empty."""
     df = query_batch_by_date(batch_date.isoformat(), db_path=db_path)
     return df if not df.empty else None
 

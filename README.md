@@ -1,14 +1,6 @@
 # CerviRisk
 
-CerviRisk is an end-to-end machine learning system for cervical cancer screening risk prediction. It simulates longitudinal HPV/cytology registry data, builds leakage-aware historical features, trains CIN2+ risk models, serves predictions with FastAPI, and monitors monthly data drift.
-
-The project is self-contained: a reviewer can clone it, install dependencies, and run the full training and prediction workflow locally.
-
-## Why This ML Layer?
-
-National cervical screening programs already provide guideline-based screening, invitations, testing, follow-up, and population-level quality monitoring. CerviRisk is not intended to replace that system. Instead, it demonstrates an additional patient-level risk stratification layer on top of registry-style screening data.
-
-The goal is to help prioritize monthly follow-up work: highlight women who may need earlier clinical review, combine current HPV/cytology results with screening history, surface high-risk patterns, and monitor whether incoming data has shifted over time.
+An end-to-end ML system for cervical cancer screening risk prediction. Simulates longitudinal HPV/cytology registry data, builds leakage-aware historical features, trains CIN2+ risk models across three time horizons (1/3/5 years), and serves predictions via FastAPI with a Streamlit clinician dashboard.
 
 ## Quick Start
 
@@ -17,149 +9,63 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python src/training_pipeline.py --bootstrap-synthetic
-python src/prediction_pipeline.py --batch-date 2024-01-01 --inject-demo-drift
-```
+# 1. Generate synthetic data
+python src/ingestion/simulator.py
 
-The first command creates synthetic historical data, preprocesses it, trains models, and writes reports. The second command simulates a monthly incoming batch, generates risk predictions, and writes a drift report.
-
-For real registry-style input, replace the bootstrap step with:
-
-```bash
-python src/training_pipeline.py --raw-input data/raw/screening_records.parquet
-```
-
-## Main Entry Points
-
-```bash
+# 2. Train models
 python src/training_pipeline.py
-python src/prediction_pipeline.py --batch-date 2024-01-01
-python src/modeling/tune.py --n-iter 12
-uvicorn src.serving.app:app --reload
-python src/serving/test_request.py
-streamlit run src/dashboard/app.py
-```
 
-Important tuning defaults live in `src/config.py`, including cohort size, split years, primary target, XGBoost parameters, clustering settings, and drift thresholds.
+# 3. Launch dashboards
+streamlit run src/dashboard/app.py              # clinical triage
+streamlit run src/dashboard/app_presentation.py # pipeline demo
+
+# 4. Serve predictions
+uvicorn src.serving.app:app --reload
+```
 
 ## Pipeline
 
-```mermaid
-flowchart LR
-    A[Historical registry data or simulator] --> B[Preprocessing and features]
-    B --> C[Time-based train/validation/test split]
-    C --> D[Model training]
-    D --> E[Model artifacts]
-    E --> F[FastAPI prediction]
-    G[Monthly incoming batch] --> H[Batch prediction]
-    G --> I[Drift monitoring]
+```
+simulator.py  →  preprocess.py  →  train.py  →  app.py (FastAPI)
+  (data)           (features)      (models)      (serving)
 ```
 
-## Model Training And Tuning
+All configuration lives in `src/config.py`: cohort size, split years, XGBoost parameters, clustering settings, drift thresholds.
 
-`src/modeling/train.py` benchmarks three supervised models for the primary 3-year CIN2+ target:
+## Models
 
-- Logistic Regression
-- Random Forest
-- XGBoost
+Three models are benchmarked on the primary 3-year CIN2+ target; the best is saved as `models/best_cin2_3yr.pkl`. XGBoost models are also saved for all three horizons and used by the prediction API.
 
-It saves the best validation model as `models/best_cin2_3yr.pkl`. For the deployed 1-year, 3-year, and 5-year risk endpoints, the pipeline also trains XGBoost models and saves:
-
-- `models/xgb_cin2_1yr.pkl`
-- `models/xgb_cin2_3yr.pkl`
-- `models/xgb_cin2_5yr.pkl`
-
-XGBoost parameters are defined in `src/config.py`. To run a time-series hyperparameter search:
+To run a hyperparameter search:
 
 ```bash
 python src/modeling/tune.py --target outcome_cin2_3yr --n-iter 20
 ```
 
-Outputs:
-
-- `reports/tuning_results.csv`
-- `reports/best_xgb_params.json`
-
-After tuning, copy the selected parameters into `src/config.py` and rerun `src/training_pipeline.py`.
-
-## Serving And Monitoring
-
-FastAPI exposes a single-record prediction endpoint for system-to-system serving:
-
-```bash
-uvicorn src.serving.app:app --reload
-```
-
-Test it:
-
-```bash
-python src/serving/test_request.py
-```
-
-The clinician-facing view is the monthly triage dashboard:
-
-```bash
-streamlit run src/dashboard/app.py
-```
-
-It reads the latest monthly predictions, highlights urgent/high-risk patients, shows recommended review actions, and displays the drift report.
-
-The dashboard is designed for clinicians reviewing a monthly screening batch. It is not a patient-facing page. The demo uses synthetic, de-identified patient IDs only; names, addresses, national identifiers, contact details, and other direct personal identifiers are not displayed. A real deployment should add authentication, role-based access, audit logging, and local privacy-compliance controls before connecting to clinical data.
-
-![CerviRisk monthly triage dashboard](docs/dashboard_screenshot.png)
-
-Monthly predictions are generated by:
-
-```bash
-python src/prediction_pipeline.py --batch-date 2024-01-01
-```
-
-This always runs drift monitoring and writes `reports/drift_report.json`. Numeric drift uses a KS test; categorical drift uses a chi-square test.
-
-## Storage Choices
-
-- `data/incoming/`: monthly Parquet batches plus `manifest.jsonl`
-- `data/raw/`: historical registry-style Parquet
-- `data/processed/`: feature matrices and split files
-- `models/`: trained model artifacts
-- `reports/`: metrics, feature importance, tuning results, SHAP plots, drift logs
-
-The demo uses flat files so it can run locally without external services. A production version would likely add a database for incoming events, prediction logs, and audit trails.
-
-## Scalability
-
-- Simulator supports large cohorts via `--n-women` and `--chunk-size`
-- Parquet partitioning supports efficient year-level reads
-- Feature engineering has both Pandas and Polars implementations
-- XGBoost can switch to Dask mode with `CERVIRISK_USE_DASK_XGB=1`
-
-Example:
-
-```bash
-python src/ingestion/simulator.py --n-women 500000 --chunk-size 25000 --output data/raw/screening_records_partitioned --partition-by-year
-python src/features/preprocess_polars.py --input data/raw/screening_records_partitioned --output data/processed/features_polars_partitioned --partition-by-year
-CERVIRISK_USE_DASK_XGB=1 python src/modeling/train.py
-```
+Copy the best parameters from `reports/best_xgb_params.json` into `src/config.py` and retrain.
 
 ## Repository Layout
 
-```text
-src/
-  config.py
-  training_pipeline.py
-  prediction_pipeline.py
-  ingestion/      Data simulation and monthly batch ingestion
-  features/       Preprocessing and feature engineering
-  modeling/       Training, tuning, clustering, explanation, batch prediction
-  serving/        FastAPI app and request smoke test
-  dashboard/      Clinician-facing monthly triage dashboard
-  monitoring/     Drift checks
-
-data/             Local input and generated data files
-models/           Trained model artifacts
-reports/          Metrics, plots, tuning output, and drift reports
 ```
+src/
+  config.py               Central configuration
+  training_pipeline.py    Orchestrates preprocess → train → cluster → explain
+  ingestion/              Data simulation and batch ingestion
+  features/               Feature engineering (Pandas + Polars)
+  modeling/               Training, tuning, clustering, SHAP explanations
+  serving/                FastAPI prediction endpoint
+  dashboard/              Streamlit dashboards
+  monitoring/             Data drift detection (KS + chi-square)
+
+data/                     Generated data (gitignored)
+models/                   Trained model artifacts (gitignored)
+reports/                  Metrics, plots, drift reports (gitignored)
+```
+
+## Scalability
+
+The simulator supports large cohorts via `--n-women` and `--chunk-size`. A Polars preprocessing path and year-partitioned Parquet output are available for datasets that don't fit in memory.
 
 ## Note
 
-All generated records are synthetic and intended only for software engineering and modeling demonstration. They must not be used for clinical decision-making.
+All records are synthetic and for demonstration only. Not for clinical use.

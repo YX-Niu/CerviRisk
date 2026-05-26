@@ -31,6 +31,12 @@ def parse_args() -> argparse.Namespace:
         help="Generate synthetic historical raw data before training. Use --raw-input for database/export data.",
     )
     parser.add_argument("--bootstrap-n-women", type=int, default=SIMULATION.n_women)
+    parser.add_argument(
+        "--monthly",
+        action="store_true",
+        help="Simulate data as monthly batches into data/incoming/ and train from those files. "
+             "This is the unified data flow: same format for training and monthly prediction.",
+    )
     parser.add_argument("--skip-explain", action="store_true")
     parser.add_argument("--skip-clustering", action="store_true")
     return parser.parse_args()
@@ -42,32 +48,43 @@ def main() -> None:
     raw_input = args.raw_input
     steps = []
 
-    if args.bootstrap_synthetic:
-        steps.append(
-            (
-                "historical synthetic raw data bootstrap",
-                [
-                    python,
-                    "src/ingestion/simulator.py",
-                    "--n-women",
-                    str(args.bootstrap_n_women),
-                    "--output",
-                    str(raw_input),
-                ],
+    if args.monthly:
+        # Unified flow: simulator writes monthly batches → preprocess reads them
+        steps.append((
+            "simulate monthly batches",
+            [python, "src/ingestion/simulator.py", "--monthly",
+             "--n-women", str(args.bootstrap_n_women)],
+        ))
+        steps.append((
+            "preprocessing and feature engineering",
+            [python, "src/features/preprocess.py", "--from-monthly"],
+        ))
+    elif args.bootstrap_synthetic:
+        steps.append((
+            "historical synthetic raw data bootstrap",
+            [python, "src/ingestion/simulator.py",
+             "--n-women", str(args.bootstrap_n_women), "--output", str(raw_input)],
+        ))
+        steps.append((
+            "preprocessing and feature engineering",
+            [python, "src/features/preprocess.py", "--raw-input", str(raw_input)],
+        ))
+    else:
+        if not (ROOT / raw_input).exists():
+            raise FileNotFoundError(
+                f"{raw_input} does not exist. Options:\n"
+                "  --monthly              simulate + train from monthly batches (recommended)\n"
+                "  --bootstrap-synthetic  generate one flat raw file then train\n"
+                "  --raw-input <path>     point to an existing Parquet export"
             )
-        )
-    elif not (ROOT / raw_input).exists():
-        raise FileNotFoundError(
-            f"{raw_input} does not exist. Provide --raw-input from your ingestion layer, "
-            "or run with --bootstrap-synthetic for the self-contained demo."
-        )
+        steps.append((
+            "preprocessing and feature engineering",
+            [python, "src/features/preprocess.py", "--raw-input", str(raw_input)],
+        ))
 
-    steps.extend(
-        [
-            ("preprocessing and feature engineering", [python, "src/features/preprocess.py", "--raw-input", str(raw_input)]),
-            ("model training", [python, "src/modeling/train.py"]),
-        ]
-    )
+    steps.extend([
+        ("model training", [python, "src/modeling/train.py"]),
+    ])
     if not args.skip_clustering:
         steps.append(("unsupervised cluster profiling", [python, "src/modeling/clustering.py"]))
     if not args.skip_explain:

@@ -11,9 +11,9 @@ import pandas as pd
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 try:
-    from src.config import PROCESSED_DIR, RAW_PATH, SPLITS
+    from src.config import INCOMING_DIR, PROCESSED_DIR, RAW_PATH, SPLITS
 except ModuleNotFoundError:
-    from config import PROCESSED_DIR, RAW_PATH, SPLITS
+    from config import INCOMING_DIR, PROCESSED_DIR, RAW_PATH, SPLITS
 
 TARGETS = ["outcome_cin2_1yr", "outcome_cin2_3yr", "outcome_cin2_5yr"]
 ID_COLUMNS = ["person_id", "screening_date"]
@@ -121,17 +121,42 @@ def split_by_time(features: pd.DataFrame) -> dict[str, pd.DataFrame]:
     }
 
 
+def load_monthly_batches(incoming_dir: Path) -> pd.DataFrame:
+    """Concatenate all monthly batch files from incoming_dir into one DataFrame.
+
+    Expects the layout: incoming_dir/batch_date=YYYY-MM-DD/screening_records.parquet
+    This is produced by both simulator.py --monthly and ingest.py.
+    """
+    files = sorted(incoming_dir.glob("batch_date=*/screening_records.parquet"))
+    if not files:
+        raise FileNotFoundError(
+            f"No monthly batch files found in {incoming_dir}. "
+            "Run: python src/ingestion/simulator.py --monthly"
+        )
+    print(f"Loading {len(files)} monthly batches from {incoming_dir} …")
+    parts = [pd.read_parquet(f) for f in files]
+    df = pd.concat(parts, ignore_index=True)
+    print(f"  Total rows: {len(df):,}  |  patients: {df['person_id'].nunique():,}")
+    return df
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build leakage-aware CerviRisk features from raw screening records.")
     parser.add_argument("--raw-input", type=Path, default=RAW_PATH)
     parser.add_argument("--processed-dir", type=Path, default=PROCESSED_DIR)
+    parser.add_argument(
+        "--from-monthly",
+        action="store_true",
+        help="Read from monthly batch folders in --incoming-dir instead of a single raw Parquet.",
+    )
+    parser.add_argument("--incoming-dir", type=Path, default=INCOMING_DIR)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     args.processed_dir.mkdir(parents=True, exist_ok=True)
-    raw = pd.read_parquet(args.raw_input)
+    raw = load_monthly_batches(args.incoming_dir) if args.from_monthly else pd.read_parquet(args.raw_input)
     features, category_levels = build_dataset(raw)
     feature_columns = [c for c in features.columns if c not in ID_COLUMNS + TARGETS]
 

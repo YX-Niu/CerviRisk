@@ -12,6 +12,7 @@ import pandas as pd
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.config import INCOMING_DIR, INGESTION
+from src.db import DB_PATH, insert_screening_records, query_batch_by_date
 from src.ingestion.simulator import SimulatorConfig, generate_screening_data
 
 
@@ -30,10 +31,18 @@ def simulate_monthly_batch(batch_date: date, n_records: int, seed: int) -> pd.Da
     return batch.sort_values(["screening_date", "person_id"]).reset_index(drop=True)
 
 
+def load_batch_from_db(batch_date: date, db_path: Path) -> pd.DataFrame | None:
+    """Query the DB for records already ingested on batch_date. Returns None if empty."""
+    df = query_batch_by_date(batch_date.isoformat(), db_path=db_path)
+    return df if not df.empty else None
+
+
 def write_manifest(batch_path: Path, batch: pd.DataFrame, cadence: str) -> None:
     manifest_path = INCOMING_DIR / "manifest.jsonl"
+    raw_date = batch["ingestion_batch_date"].iloc[0]
+    batch_date_str = str(pd.Timestamp(raw_date).date()) if raw_date is not None else "unknown"
     entry = {
-        "batch_date": str(batch["ingestion_batch_date"].iloc[0].date()),
+        "batch_date": batch_date_str,
         "cadence": cadence,
         "path": str(batch_path),
         "rows": int(len(batch)),
@@ -50,12 +59,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-records", type=int, default=INGESTION.n_records)
     parser.add_argument("--seed", type=int, default=INGESTION.seed)
     parser.add_argument("--output-dir", type=Path, default=INCOMING_DIR)
+    parser.add_argument(
+        "--from-db",
+        action="store_true",
+        help="Load the monthly batch from the SQLite database instead of re-simulating.",
+    )
+    parser.add_argument("--db-path", type=Path, default=DB_PATH)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    batch = simulate_monthly_batch(args.batch_date, args.n_records, args.seed)
+
+    if args.from_db:
+        batch = load_batch_from_db(args.batch_date, db_path=args.db_path)
+        if batch is None:
+            print(f"No records found in DB for batch_date={args.batch_date}. Falling back to simulation.")
+            batch = simulate_monthly_batch(args.batch_date, args.n_records, args.seed)
+            insert_screening_records(batch, db_path=args.db_path)
+            print(f"Inserted simulated batch into {args.db_path}")
+        else:
+            print(f"Loaded {len(batch):,} rows from DB for batch_date={args.batch_date}")
+    else:
+        batch = simulate_monthly_batch(args.batch_date, args.n_records, args.seed)
+        insert_screening_records(batch, db_path=args.db_path)
+        print(f"Simulated and wrote {len(batch):,} rows to DB")
+
     batch_dir = args.output_dir / f"batch_date={args.batch_date.isoformat()}"
     batch_dir.mkdir(parents=True, exist_ok=True)
     batch_path = batch_dir / "screening_records.parquet"

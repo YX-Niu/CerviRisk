@@ -9,15 +9,15 @@ from pathlib import Path
 class SimulationDefaults:
     n_women: int = 22000
     start_year: int = 2010
-    end_year: int = 2024
+    end_year: int = 2026
     seed: int = 42
 
 
 @dataclass(frozen=True)
 class IngestionDefaults:
-    batch_date: date = date(2024, 1, 1)
+    batch_date: date = date(2026, 1, 1)
     n_records: int = 750
-    seed: int = 202401
+    seed: int = 202601
 
 
 @dataclass(frozen=True)
@@ -53,8 +53,8 @@ class ClusteringDefaults:
 @dataclass(frozen=True)
 class MonitoringDefaults:
     fallback_n_women: int = 900
-    fallback_start_year: int = 2024
-    fallback_end_year: int = 2025
+    fallback_start_year: int = 2025
+    fallback_end_year: int = 2026
     fallback_seed: int = 2026
     p_value_threshold: float = 0.01
     demo_drift_fraction: float = 0.18

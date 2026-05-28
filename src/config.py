@@ -16,8 +16,6 @@ class SimulationDefaults:
 @dataclass(frozen=True)
 class IngestionDefaults:
     batch_date: date = date(2026, 5, 1)
-    n_records: int = 750
-    seed: int = 202601
 
 
 @dataclass(frozen=True)

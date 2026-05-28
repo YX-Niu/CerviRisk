@@ -8,7 +8,7 @@ import pandas as pd
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from src.features.inference import build_inference_features, load_metadata
+from src.features.prediction import build_prediction_features, load_metadata
 
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DIR = ROOT / "data/processed"
@@ -74,6 +74,6 @@ def predict(record: ScreeningRecord) -> dict[str, Any]:
     data = record.model_dump(by_alias=True)
     if data["birth_year"] is None:
         data["birth_year"] = 2026 - int(round(float(data["age"])))
-    features = build_inference_features(pd.DataFrame([data]), metadata)
+    features = build_prediction_features(pd.DataFrame([data]), metadata)
     risks = {window: float(model.predict_proba(features)[:, 1][0]) for window, model in models.items()}
     return {"risk_probabilities": risks, "model": "xgboost", "target": "CIN2+"}

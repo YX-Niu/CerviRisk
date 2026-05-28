@@ -6,27 +6,25 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
-from src.config import INCOMING_DIR, INGESTION
+from src.config import INCOMING_DIR, INGESTION, RAW_PATH
 from src.db import DB_PATH, insert_screening_records, query_batch_by_date
-from src.ingestion.simulator import SimulatorConfig, generate_screening_data
 
 
-def simulate_monthly_batch(batch_date: date, n_records: int, seed: int) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    cfg = SimulatorConfig(n_women=n_records, start_year=batch_date.year, end_year=batch_date.year, seed=seed)
-    batch = generate_screening_data(cfg).groupby("person_id", as_index=False).tail(1).copy()
-
-    days_in_month = pd.Period(batch_date, freq="M").days_in_month
-    random_days = rng.integers(1, days_in_month + 1, size=len(batch))
-    batch["screening_date"] = [
-        pd.Timestamp(year=batch_date.year, month=batch_date.month, day=int(day))
-        for day in random_days
-    ]
+def load_batch_from_raw(batch_date: date, raw_path: Path = RAW_PATH) -> pd.DataFrame | None:
+    """Slice the month's records from the historical raw dataset — same patients as training."""
+    if not raw_path.exists():
+        return None
+    raw = pd.read_parquet(raw_path)
+    raw["screening_date"] = pd.to_datetime(raw["screening_date"])
+    mask = (raw["screening_date"].dt.year == batch_date.year) & \
+           (raw["screening_date"].dt.month == batch_date.month)
+    batch = raw.loc[mask].copy()
+    if batch.empty:
+        return None
     batch["ingestion_batch_date"] = pd.Timestamp(batch_date)
     return batch.sort_values(["screening_date", "person_id"]).reset_index(drop=True)
 
@@ -53,15 +51,14 @@ def write_manifest(batch_path: Path, batch: pd.DataFrame, cadence: str) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Simulate a monthly incoming CerviRisk screening batch.")
+    parser = argparse.ArgumentParser(description="Extract a monthly CerviRisk screening batch from raw data.")
     parser.add_argument("--batch-date", type=date.fromisoformat, default=INGESTION.batch_date)
-    parser.add_argument("--n-records", type=int, default=INGESTION.n_records)
-    parser.add_argument("--seed", type=int, default=INGESTION.seed)
     parser.add_argument("--output-dir", type=Path, default=INCOMING_DIR)
+    parser.add_argument("--raw-path", type=Path, default=RAW_PATH)
     parser.add_argument(
         "--from-db",
         action="store_true",
-        help="Load the monthly batch from the SQLite database instead of re-simulating.",
+        help="Load the monthly batch from the SQLite database instead.",
     )
     parser.add_argument("--db-path", type=Path, default=DB_PATH)
     return parser.parse_args()
@@ -73,16 +70,16 @@ def main() -> None:
     if args.from_db:
         batch = load_batch_from_db(args.batch_date, db_path=args.db_path)
         if batch is None:
-            print(f"No records found in DB for batch_date={args.batch_date}. Falling back to simulation.")
-            batch = simulate_monthly_batch(args.batch_date, args.n_records, args.seed)
-            insert_screening_records(batch, db_path=args.db_path)
-            print(f"Inserted simulated batch into {args.db_path}")
+            print(f"No records in DB for {args.batch_date}, falling back to raw data.")
+            batch = load_batch_from_raw(args.batch_date, args.raw_path)
         else:
-            print(f"Loaded {len(batch):,} rows from DB for batch_date={args.batch_date}")
+            print(f"Loaded {len(batch):,} rows from DB for {args.batch_date}")
     else:
-        batch = simulate_monthly_batch(args.batch_date, args.n_records, args.seed)
-        insert_screening_records(batch, db_path=args.db_path)
-        print(f"Simulated and wrote {len(batch):,} rows to DB")
+        batch = load_batch_from_raw(args.batch_date, args.raw_path)
+
+    if batch is None or batch.empty:
+        print(f"No records found for {args.batch_date} in {args.raw_path}. Nothing written.")
+        return
 
     batch_dir = args.output_dir / f"batch_date={args.batch_date.isoformat()}"
     batch_dir.mkdir(parents=True, exist_ok=True)
@@ -90,7 +87,7 @@ def main() -> None:
     batch.to_parquet(batch_path, index=False)
     write_manifest(batch_path, batch, cadence="monthly")
 
-    print(f"Saved monthly ingestion batch: {batch_path}")
+    print(f"Saved monthly batch: {batch_path}")
     print("rows:", len(batch))
     print("date range:", batch["screening_date"].min().date(), "to", batch["screening_date"].max().date())
 

@@ -109,7 +109,7 @@ def build_dataset(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, list[str]]
 
 
 def split_by_time(features: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    dates = pd.to_datetime(features["screening_date"])
+    dates = features["screening_date"] # Assumes screening_date is already datetime type
     return {
         "train": features.loc[dates.dt.year.between(SPLITS.train_start_year, SPLITS.train_end_year)].copy(),
         "validation": features.loc[dates.dt.year.between(SPLITS.validation_start_year, SPLITS.validation_end_year)].copy(),

@@ -84,8 +84,16 @@ def main() -> None:
     output_path = REPORT_DIR / "drift_report.json"
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
+
+    print("\n--- Drift Monitoring Summary ---")
+    for feat in ["age", "hpv_genotype", "cytology_result"]:
+        status = "DRIFT" if report[feat]["drift_detected"] else "✅ OK"
+        p_val = report[feat]["p_value"]
+        print(f"{feat:15} | {status} | p-value: {p_val:.4f}")
+
     if report["overall_drift_detected"]:
         print("WARNING: drift threshold exceeded for at least one monitored feature.")
+        print("\nWARNING: Significant data drift detected! Model results may be unreliable.")
 
 
 if __name__ == "__main__":

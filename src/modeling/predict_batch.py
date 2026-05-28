@@ -10,7 +10,7 @@ import pandas as pd
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.config import MODEL_DIR, PROCESSED_DIR, REPORT_DIR
-from src.features.inference import build_inference_features, load_metadata
+from src.features.prediction import build_prediction_features, load_metadata
 
 
 MODEL_FILES = {
@@ -81,7 +81,7 @@ def add_triage_fields(predictions: pd.DataFrame) -> pd.DataFrame:
 def predict_batch(input_path: Path, output_path: Path, metadata_path: Path = PROCESSED_DIR / "metadata.json") -> pd.DataFrame:
     metadata = load_metadata(metadata_path)
     records = pd.read_parquet(input_path)
-    features = build_inference_features(records, metadata)
+    features = build_prediction_features(records, metadata)
 
     output_columns = ["person_id", "screening_date"] + [col for col in CLINICAL_COLUMNS if col in records.columns]
     predictions = records[output_columns].copy()

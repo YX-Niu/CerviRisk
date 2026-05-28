@@ -15,7 +15,7 @@ def load_metadata(metadata_path: Path = PROCESSED_DIR / "metadata.json") -> dict
     return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
-def add_inference_defaults(records: pd.DataFrame) -> pd.DataFrame:
+def add_prediction_defaults(records: pd.DataFrame) -> pd.DataFrame:
     records = records.copy()
     if "n_previous_screens" not in records.columns and "visit_index" in records.columns:
         records["n_previous_screens"] = records["visit_index"]
@@ -32,8 +32,8 @@ def add_inference_defaults(records: pd.DataFrame) -> pd.DataFrame:
     return records
 
 
-def build_inference_features(records: pd.DataFrame, metadata: dict) -> pd.DataFrame:
-    records = add_inference_defaults(records)
+def build_prediction_features(records: pd.DataFrame, metadata: dict) -> pd.DataFrame:
+    records = add_prediction_defaults(records)
 
     rows = pd.DataFrame(index=records.index)
     for col in metadata["numeric_columns"]:

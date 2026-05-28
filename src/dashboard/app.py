@@ -299,7 +299,7 @@ def show_drift_status(df: pd.DataFrame) -> None:
         return
 
     status = report.get("overall_drift_detected", False)
-    st.markdown(f"### Status: {'🔴 Drift Detected' if status else '✅ No Drift Detected'}")
+    st.markdown(f"### Status: {'Drift Detected' if status else '✅ No Drift Detected'}")
 
     drift_rows = []
     for feature in ["age", "hpv_genotype", "cytology_result"]:

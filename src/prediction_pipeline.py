@@ -21,7 +21,11 @@ def run_step(name: str, command: list[str]) -> None:
     env = os.environ.copy()
     env.setdefault("MPLCONFIGDIR", "/tmp/mplconfig")
     env.setdefault("LOKY_MAX_CPU_COUNT", "4")
-    subprocess.run(command, cwd=ROOT, env=env, check=True)
+    try:
+        subprocess.run(command, cwd=ROOT, env=env, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred in step '{name}': {e}")
+        sys.exit(e.returncode)
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,6 +69,14 @@ def main() -> None:
     run_step("data drift monitoring", command)
 
     print("\nPrediction pipeline complete. Outputs are in data/predictions/ and reports/.")
+    print("\nLaunching triage dashboard — press Ctrl+C to stop.")
+    env = os.environ.copy()
+    env.setdefault("MPLCONFIGDIR", "/tmp/mplconfig")
+    subprocess.run(
+        [python, "-m", "streamlit", "run", "src/dashboard/app.py"],
+        cwd=ROOT,
+        env=env,
+    )
 
 
 if __name__ == "__main__":

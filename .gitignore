@@ -20,3 +20,4 @@ reports/*.csv
 reports/*.json
 reports/*.png
 reports/*.html
+presentation/
